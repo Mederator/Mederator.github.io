@@ -9,16 +9,43 @@
     body { margin: 0; }
     canvas { display: block; }
   </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.129.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.129.0/examples/jsm/",
+         "three-to-ammo": "https://unpkg.com/three-to-ammo@1.0.1/index.js"
+      }
+    }
+  </script>
+
+  <script type="module">
+
+    import * as THREE from 'three';
+    window.THREE = THREE;
+  </script>
+
+
+
 </head>
 
-<script src="js/threex.KeyboardState.js"></script>
+
+
 <!--<script src="https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.min.js"></script>-->
 
 <body>
+<script src="js/THREEx.keyboardstate.js"></script>
+
   <canvas class="webgl"></canvas>
+  <script src="js/ammo.js"></script>
+  <script src="js/THREE.AmmoDebugDrawer.js" ></script>
+
   <script type="module" src="js/index.js"></script>
+
 </body>
 
 </html>
+<!--"ammo-debug-drawer": "https://unpkg.com/ammo-debug-drawer@1.0.1/AmmoDebugDrawer.js"-->
+
 
 
