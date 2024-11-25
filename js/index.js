@@ -1,18 +1,25 @@
-import {OrbitControls} from 'https://cdn.skypack.dev/three@0.129.0/examples/jsm/controls/OrbitControls.js'
-import {GLTFLoader} from 'https://cdn.skypack.dev/three@0.129.0/examples/jsm/loaders/GLTFLoader.js'
+import { OrbitControls } from 'https://cdn.skypack.dev/three@0.129.0/examples/jsm/controls/OrbitControls.js'
+import { GLTFLoader } from 'https://cdn.skypack.dev/three@0.129.0/examples/jsm/loaders/GLTFLoader.js'
 import * as threeToAmmo from "three-to-ammo"
-import {TYPE} from "three-to-ammo";
+import { TYPE } from "three-to-ammo";
 // import {THREE} from './THREE.AmmoDebugDrawer.js'; // Import your custom class
 // import {AmmoDebugDrawer, AmmoDebugConstants, DefaultBufferSize} from "ammo-debug-drawer"
 
+const FLAGS = { CF_KINEMATIC_OBJECT: 2 }
+const STATE = { DISABLE_DEACTIVATION : 4 }
 
-var sizes, canvas, camera, scene, light1, light2, renderer, controls, loader, maze, ballBody, world, tmpTrans
+var sizes, canvas, camera, scene, light1, light2, renderer, controls, loader, maze, ground, world, tmpTrans
 
 var clock = new THREE.Clock();
 var keyboard = new THREEx.KeyboardState()
 var dynamicsWorld;
 let rigidBodies = []
 var debugDrawer;
+let tmpPos = new THREE.Vector3(), tmpQuat = new THREE.Quaternion();
+let rotateDirection = { x: 0, y: 0, z: 0 };
+
+let ammoTmpPos = null, ammoTmpQuat = null;
+
 
 Ammo().then(setupPhysics)
 
@@ -20,7 +27,9 @@ Ammo().then(setupPhysics)
 function setupPhysics() {
 
     tmpTrans = new Ammo.btTransform();
-
+    ammoTmpPos = new Ammo.btVector3();
+    ammoTmpQuat = new Ammo.btQuaternion();
+3
     var collisionConfiguration = new Ammo.btDefaultCollisionConfiguration(),
         dispatcher = new Ammo.btCollisionDispatcher(collisionConfiguration),
         overlappingPairCache = new Ammo.btDbvtBroadphase(),
@@ -31,6 +40,7 @@ function setupPhysics() {
     init()
     initDebug()
     addObjects()
+    setupEventHandlers()
     render()
 }
 
@@ -103,15 +113,15 @@ function render() {
 function createGround() {
     loader.load('../models/ground.glb', function (glb) {
         // console.log(glb)
-        let pos = {x: 0, y: 0, z: 0};
-        let scale = {x: 1, y: 1, z: 1};
-        let quat = {x: 0, y: 0, z: 0, w: 1};
+        let pos = { x: 0, y: 0, z: 0 };
+        let scale = { x: 1, y: 1, z: 1 };
+        let quat = { x: 0, y: 0, z: 0, w: 1 };
         let mass = 0;
-        maze = glb.scene
-        maze.scale.set(scale.x, scale.y, scale.z)
-        maze.position.set(pos.x, pos.y, pos.z)
-        maze.rotateOnAxis(new THREE.Vector3(0, 0, 0), Math.PI)
-        scene.add(maze)
+        ground = glb.scene
+        ground.scale.set(scale.x, scale.y, scale.z)
+        ground.position.set(pos.x, pos.y, pos.z)
+        ground.rotateOnAxis(new THREE.Vector3(0, 0, 0), Math.PI)
+        scene.add(ground)
 
         //Ammojs Section
         let transform = new Ammo.btTransform();
@@ -120,9 +130,9 @@ function createGround() {
         transform.setRotation(new Ammo.btQuaternion(quat.x, quat.y, quat.z, quat.w));
         let motionState = new Ammo.btDefaultMotionState(transform);
         const shapeComponent = {
-            el: {object3D: maze},
+            el: { object3D: ground },
             data: {
-                offset: new THREE.Vector3(0,-0.85,0),
+                offset: new THREE.Vector3(0, -0.85, 0),
                 type: TYPE.HULL, // Collision shape type
             }
         };
@@ -141,9 +151,11 @@ function createGround() {
         let body = new Ammo.btRigidBody(rbInfo);
 
 
+        body.setActivationState( STATE.DISABLE_DEACTIVATION );
+        body.setCollisionFlags(FLAGS.CF_KINEMATIC_OBJECT);
         dynamicsWorld.addRigidBody(body);
-        maze.userData.physicsBody = body;
-        rigidBodies.push(maze);
+        ground.userData.physicsBody = body;
+        rigidBodies.push(ground);
 
         // Create the ball after the maze has loaded
 
@@ -159,9 +171,9 @@ function createGround() {
 function createMaze() {
     loader.load('../models/maze-circular.glb', function (glb) {
         // console.log(glb)
-        let pos = {x: 0, y: 0, z: 0};
-        let scale = {x: 1, y: 1, z: 1};
-        let quat = {x: 0, y: 0, z: 0, w: 1};
+        let pos = { x: 0, y: 0, z: 0 };
+        let scale = { x: 1, y: 1, z: 1 };
+        let quat = { x: 0, y: 0, z: 0, w: 1 };
         let mass = 0;
         maze = glb.scene
         maze.scale.set(scale.x, scale.y, scale.z)
@@ -176,9 +188,9 @@ function createMaze() {
         transform.setRotation(new Ammo.btQuaternion(quat.x, quat.y, quat.z, quat.w));
         let motionState = new Ammo.btDefaultMotionState(transform);
         const shapeComponent = {
-            el: {object3D: maze},
+            el: { object3D: maze },
             data: {
-                offset: new THREE.Vector3(0,0,0),
+                offset: new THREE.Vector3(0, 0, 0),
                 type: TYPE.HACD, // Collision shape type
             }
         };
@@ -196,6 +208,8 @@ function createMaze() {
         let rbInfo = new Ammo.btRigidBodyConstructionInfo(mass, motionState, compoundShape, localInertia);
         let body = new Ammo.btRigidBody(rbInfo);
 
+        body.setActivationState(STATE.DISABLE_DEACTIVATION);
+        body.setCollisionFlags(FLAGS.CF_KINEMATIC_OBJECT);
 
         dynamicsWorld.addRigidBody(body);
         maze.userData.physicsBody = body;
@@ -220,12 +234,12 @@ function addObjects() {
 function createBall() {
 
     setTimeout(() => {
-        const radius = 0.5;
-        let pos = {x: 0, y: 10, z: 0};
-        let quat = {x: 0, y: 0, z: 0, w: 1};
+        const radius = 0.2;
+        let pos = { x: 0, y: 10, z: 0 };
+        let quat = { x: 0, y: 0, z: 0, w: 1 };
         let mass = 1;
 
-        let ball = new THREE.Mesh(new THREE.SphereBufferGeometry(radius), new THREE.MeshPhongMaterial({color: 0x1118d6}));
+        let ball = new THREE.Mesh(new THREE.SphereBufferGeometry(radius), new THREE.MeshPhongMaterial({ color: 0x1118d6 }));
         ball.position.set(pos.x, pos.y, pos.z);
         ball.castShadow = true;
         ball.receiveShadow = true;
@@ -291,44 +305,125 @@ function _createCollisionShape(shapeComponent) {
         matrices.push(matrixArray);
         indexes.push(indexArray);
     });
-    console.log("data: ",data)
+    console.log("data: ", data)
     return threeToAmmo.createCollisionShapes(vertices, matrices, indexes, matrixWorld.elements, data);
 
 }
 
-function updatePhysicsFromThree(threeObject, rigidBody) {
-    console.log("physics update")
-    const transform = new Ammo.btTransform();
-    transform.setIdentity();
 
-    // Set position
-    const position = threeObject.position;
-    transform.setOrigin(new Ammo.btVector3(position.x, position.y, position.z));
+function handleKeyDown(event) {
 
-    // Set rotation
-    const quaternion = threeObject.quaternion;
-    transform.setRotation(new Ammo.btQuaternion(quaternion.x, quaternion.y, quaternion.z, quaternion.w));
+    let keyCode = event.keyCode;
 
-    // Apply transform to the rigid body
-    rigidBody.setWorldTransform(transform);
+    switch(keyCode) {
+        case 87: // W: TILT UP (Rotate around X-axis positively)
+            rotateDirection.x = 1;
+            break;
+        case 83: // S: TILT DOWN (Rotate around X-axis negatively)
+            rotateDirection.x = -1;
+            break;
+        case 65: // A: ROLL LEFT (Rotate around Z-axis positively)
+            rotateDirection.z = 1;
+            break;
+        case 68: // D: ROLL RIGHT (Rotate around Z-axis negatively)
+            rotateDirection.z = -1;
+            break;
+        case 81: // Q:  ROTATE LEFT (Rotate around Y-axis positively)
+            rotateDirection.y = 1;
+            break;
+        case 69: // E:  ROTATE RIGHT (Rotate around Y-axis negatively)
+            rotateDirection.y = -1;
+            break;
+    }
+}
 
-    // Clean up memory
-    Ammo.destroy(transform);
+function handleKeyUp(event){
+    let keyCode = event.keyCode;
+
+    switch(keyCode) {
+        case 87: // W: TILT UP (Rotate around X-axis positively)
+            rotateDirection.x = 0;
+            break;
+        case 83: // S: TILT DOWN (Rotate around X-axis negatively)
+            rotateDirection.x = 0;
+            break;
+        case 65: // A: ROTATE LEFT (Rotate around Y-axis positively)
+            rotateDirection.z = 0;
+            break;
+        case 68: // D: ROTATE RIGHT (Rotate around Y-axis negatively)
+            rotateDirection.z = 0;
+            break;
+        case 81: // Q: ROLL LEFT (Rotate around Z-axis positively)
+            rotateDirection.y = 0;
+            break;
+        case 69: // E: ROLL RIGHT (Rotate around Z-axis negatively)
+            rotateDirection.y = 0;
+            break;
+    }
+
+}
+
+function rotateKinematic() {
+    let rotationFactor = 0.05; // Adjust for desired speed
+
+    // Compute rotation values
+    let rotateX = rotateDirection.x * rotationFactor;
+    let rotateY = rotateDirection.y * rotationFactor;
+    let rotateZ = rotateDirection.z * rotationFactor;
+
+    // Rotate the visual object
+    ground.rotateOnAxis(new THREE.Vector3(1, 0, 0), rotateX);
+    ground.rotateOnAxis(new THREE.Vector3(0, 1, 0), rotateY);
+    ground.rotateOnAxis(new THREE.Vector3(0, 0, 1), rotateZ);
+    maze.rotateOnAxis(new THREE.Vector3(1, 0, 0), rotateX);
+    maze.rotateOnAxis(new THREE.Vector3(0, 1, 0), rotateY);
+    maze.rotateOnAxis(new THREE.Vector3(0, 0, 1), rotateZ);
+
+    // Sync with Ammo.js
+    ground.getWorldPosition(tmpPos);
+    ground.getWorldQuaternion(tmpQuat);
+
+
+    let physicsBodyG = ground.userData.physicsBody;
+    let physicsBodyM = maze.userData.physicsBody;
+
+    let msG = physicsBodyG.getMotionState();
+    let msM = physicsBodyM.getMotionState();
+    if (msM && msG) {
+        ammoTmpPos.setValue(tmpPos.x, tmpPos.y, tmpPos.z);
+        ammoTmpQuat.setValue(tmpQuat.x, tmpQuat.y, tmpQuat.z, tmpQuat.w);
+
+        tmpTrans.setIdentity();
+        tmpTrans.setOrigin(ammoTmpPos);
+        tmpTrans.setRotation(ammoTmpQuat);
+
+        msM.setWorldTransform(tmpTrans);
+        msG.setWorldTransform(tmpTrans);
+    }
+}
+
+function setupEventHandlers(){
+
+    window.addEventListener( 'keydown', handleKeyDown, false);
+    window.addEventListener( 'keyup', handleKeyUp, false);
+
 }
 
 function update() {
     var delta = clock.getDelta()
-    var rotateAngle = Math.PI / 2 * delta
+    if (maze && ground)
+        rotateKinematic()
+    // var rotateAngle = Math.PI / 2 * delta
 
     // Rotate maze
-    if (keyboard.pressed("Q")) maze.rotateOnAxis(new THREE.Vector3(0, 1, 0), rotateAngle);
-    if (keyboard.pressed("E")) maze.rotateOnAxis(new THREE.Vector3(0, 1, 0), -rotateAngle);
-
-    // Tilt maze
-    if (keyboard.pressed("W")) maze.rotateOnAxis(new THREE.Vector3(1, 0, 0), rotateAngle);
-    if (keyboard.pressed("S")) maze.rotateOnAxis(new THREE.Vector3(1, 0, 0), -rotateAngle);
-    if (keyboard.pressed("D")) maze.rotateOnAxis(new THREE.Vector3(0, 0, 1), rotateAngle);
-    if (keyboard.pressed("A")) maze.rotateOnAxis(new THREE.Vector3(0, 0, 1), -rotateAngle);
+    // if (keyboard.pressed("Q")) maze.rotateOnAxis(new THREE.Vector3(0, 1, 0), rotateAngle);
+    // if (keyboard.pressed("E")) maze.rotateOnAxis(new THREE.Vector3(0, 1, 0), -rotateAngle);
+    //
+    // // Tilt maze
+    // if (keyboard.pressed("W")) maze.rotateOnAxis(new THREE.Vector3(1, 0, 0), rotateAngle);
+    // if (keyboard.pressed("S")) maze.rotateOnAxis(new THREE.Vector3(1, 0, 0), -rotateAngle);
+    // if (keyboard.pressed("D")) maze.rotateOnAxis(new THREE.Vector3(0, 0, 1), rotateAngle);
+    // if (keyboard.pressed("A")) maze.rotateOnAxis(new THREE.Vector3(0, 0, 1), -rotateAngle);
 
 
     // Update physics world
