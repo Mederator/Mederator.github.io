@@ -1,0 +1,259 @@
+body {
+    margin: 0;
+    overflow: hidden;
+}
+
+#menu {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    /*background: rgb(167, 199, 231);*/
+    background-color: #aca07f;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    /*color: white;*/
+    font-family: Arial, sans-serif;
+    z-index: 10;
+    background-image: url('../assets/Bricks092_2K-JPG/Bricks092_2K-JPG_Color.jpg');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+}
+
+#menu h1 {
+    font-family: Arial, sans-serif;
+    font-size: 10em;
+    font-weight: bold;
+    margin-bottom: 20px;
+}
+
+#menu img {
+    max-width: 400px;
+    margin-bottom: 0px;
+    margin-top: -200px;
+}
+
+#menu button, #controls button {
+    width: 150px;
+    height: 50px;
+    background: #000000;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    color: white;
+    font-family: Arial, sans-serif;
+    font-size: 1.2em;
+    transition: transform 0.2s ease;
+    margin: 5px;
+}
+
+#menu button:hover, #controls button:hover {
+    transform: scale(1.025);
+    /*background: #7c7b7b;*/
+}
+
+#menu button:active, #controls button:active {
+    transform: scale(0.975);
+    /*outline: none;*/
+}
+
+#controls {
+    display: none;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    color: #000000;
+    font-family: Arial, sans-serif;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 20;
+    background-image: url('../assets/Bricks092_2K-JPG/Bricks092_2K-JPG_Color.jpg');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat
+}
+
+#controls ul {
+    list-style-type: none;
+    text-align: center;
+    margin: 0;
+    padding: 0;
+
+    height: 350px;
+    width: 350px;
+    background-image: url('../assets/BlueBall.png');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+#controls ul li {
+    font-family: Arial, sans-serif;
+    font-size: 1.2em;
+    font-weight: bold;
+    margin: 3px 0;
+}
+
+#controls button {
+    margin-top: 20px;
+}
+
+#menuButton {
+    display: none;
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    width: 50px;
+    height: 50px;
+    background: #ffffff;
+    background-size: contain;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    z-index: 20;
+    outline: none;
+    font-size: 1.2em;
+    font-weight: bold;
+    justify-content: center;
+    align-items: center;
+    color: black;
+    transition: transform 0.2s ease;
+}
+
+#menuButton:hover {
+    transform: scale(1.05);
+}
+
+#loadingScreen {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.8);
+    /*display: flex;*/
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    color: #ffffff;
+    font-family: Arial, sans-serif;
+    font-size: 1.5em;
+    z-index: 100;
+}
+
+#loader {
+    border: 8px solid rgba(255, 255, 255, 0.3); /* Outer circle */
+    border-top: 8px solid white; /* Bright loading bar */
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    animation: spin 1s linear infinite;
+    margin-bottom: 20px;
+}
+
+/* Spinner animation */
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+#timer {
+    display: none;
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 70px;
+    height: 50px;
+    font-family: Arial, sans-serif;
+    font-weight: bold;
+    font-size: 1.2em;
+    justify-content: center;
+    align-items: center;
+    color: #000000;
+    background-color: #ffffff;
+    border-radius: 5px;
+    z-index: 20;
+}
+
+#endScreen {
+    display: none;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-image: url('../assets/Bricks092_2K-JPG/Bricks092_2K-JPG_Color.jpg');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    color: #000000;
+    font-family: Arial, sans-serif;
+    z-index: 10;
+}
+
+#endText {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    z-index: 30;
+    color: #000000;
+    font-family: Arial, sans-serif;
+    display: none;
+    flex-direction: column; /* Stack children vertically */
+    align-items: center;
+    justify-content: center;
+}
+
+#endText h1 {
+    font-size: 3em;
+    font-weight: bold;
+    margin: 10px 0; /* Add some spacing between items */
+}
+
+#endText p {
+    font-size: 1.5em;
+    font-weight: bold;
+    margin: 10px 0; /* Add some spacing between items */
+}
+
+/*#endScreen button {*/
+/*    padding: 10px 20px;*/
+/*    font-size: 1.2em;*/
+/*    cursor: pointer;*/
+/*    border: none;*/
+/*    border-radius: 5px;*/
+/*    background: #000000;*/
+/*    color: white;*/
+/*    transition: transform 0.2s ease;*/
+/*}*/
+
+/*#endScreen button:hover {*/
+/*    transform: scale(1.05);*/
+/*}*/
+
+#fireworkCanvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 20;
+    pointer-events: none; /* Ensure it doesn't block interactions */
+}

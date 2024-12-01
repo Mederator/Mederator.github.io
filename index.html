@@ -20,28 +20,65 @@
   </script>
 
   <script type="module">
-
     import * as THREE from 'three';
     window.THREE = THREE;
   </script>
-
-
+  <link rel="stylesheet" href="css/menu.css">
 
 </head>
-
-
 
 <!--<script src="https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.min.js"></script>-->
 
 <body>
-<script src="js/THREEx.keyboardstate.js"></script>
+  <div id="menu" class="menu">
+    <img src="assets/TitlQuest_Logo_TB.png" alt="Logo Image">
+    <button id="startButton">Start</button>
+    <button id="controlsButton">Controls</button>
+  </div>
+
+  <div id="controls" class="menu" style="display: none;">
+    <h1>Controls</h1>
+    <ul>
+      <li>W: Tilt Up</li>
+      <li>S: Tilt Down</li>
+      <li>A: Tilt Left</li>
+      <li>D: Tilt Right</li>
+      <li>Q: Rotate Left</li>
+      <li>E: Rotate Right</li>
+    </ul>
+    <button id="backToMenuButton">Back</button>
+  </div>
+
+  <div id="loadingScreen">
+    <div id="loader"></div>
+    <p>Loading, please wait...</p>
+  </div>
+
+  <div id="timer">00:00</div>
+
+  <button id="menuButton">☰</button>
+
+  <!-- End Screen Background -->
+  <div id="endScreen">
+    <!-- Background only -->
+  </div>
+
+  <!-- Fireworks Canvas -->
+  <canvas id="fireworkCanvas"></canvas>
+
+  <!-- End Screen Text -->
+  <div id="endText">
+    <h1>Congratulations, you won!</h1>
+    <p><span id="time"></span></p>
+  </div>
+
+<!--  <script src="fireworks.js"></script>-->
 
   <canvas class="webgl"></canvas>
   <script src="js/ammo.js"></script>
+  <script src="js/THREEx.keyboardstate.js"></script>
   <script src="js/THREE.AmmoDebugDrawer.js" ></script>
-
   <script type="module" src="js/index.js"></script>
-
 </body>
 
 </html>
