@@ -279,7 +279,7 @@ function addObjects() {
     createGround();
     createMaze();
 
-    createFinishLine({ x: 0, y: -0.45, z: 10 }, { width: 1, height: 1, depth: 0.5 });
+    createFinishLine({ x: 0, y: -0.45, z:10 }, { width: 1, height: 1, depth: 0.5 });
 }
 
 function createBall() {
@@ -520,22 +520,16 @@ function handleKeyDown(event) {
 
     switch(keyCode) {
         case 87: // W: TILT UP (Rotate around X-axis positively)
-            rotateDirection.x = -1;
-            break;
-        case 83: // S: TILT DOWN (Rotate around X-axis negatively)
             rotateDirection.x = 1;
             break;
-        case 65: // A: ROLL LEFT (Rotate around Z-axis positively)
-            rotateDirection.z = 1;
+        case 83: // S: TILT DOWN (Rotate around X-axis negatively)
+            rotateDirection.x = -1;
             break;
-        case 68: // D: ROLL RIGHT (Rotate around Z-axis negatively)
+        case 65: // A: ROLL LEFT (Rotate around Z-axis positively)
             rotateDirection.z = -1;
             break;
-        case 81: // Q:  ROTATE LEFT (Rotate around Y-axis positively)
-            rotateDirection.y = 1;
-            break;
-        case 69: // E:  ROTATE RIGHT (Rotate around Y-axis negatively)
-            rotateDirection.y = -1;
+        case 68: // D: ROLL RIGHT (Rotate around Z-axis negatively)
+            rotateDirection.z = 1;
             break;
     }
 }
@@ -556,12 +550,6 @@ function handleKeyUp(event){
         case 68: // D: ROTATE RIGHT (Rotate around Y-axis negatively)
             rotateDirection.z = 0;
             break;
-        case 81: // Q: ROLL LEFT (Rotate around Z-axis positively)
-            rotateDirection.y = 0;
-            break;
-        case 69: // E: ROLL RIGHT (Rotate around Z-axis negatively)
-            rotateDirection.y = 0;
-            break;
     }
 
 }
@@ -578,64 +566,23 @@ function rotateKinematic() {
     // Get current rotation as Euler angles for checking limits
     let currentRotation = new THREE.Euler().setFromQuaternion(maze.quaternion);
 
+
     // Get camera's local axes relative to the maze
-    let cameraMatrix = new THREE.Matrix4();
-    cameraMatrix.extractRotation(camera.matrixWorld);
 
-    let cameraRight = new THREE.Vector3();
-    let cameraUp = new THREE.Vector3();
-    let cameraForward = new THREE.Vector3();
 
-    cameraRight.setFromMatrixColumn(cameraMatrix, 0); // X axis
-    cameraUp.setFromMatrixColumn(cameraMatrix, 1);   // Y axis
-    cameraForward.setFromMatrixColumn(cameraMatrix, 2); // Z axis
+    const cameraDirection = new THREE.Vector3();
+    camera.getWorldDirection(cameraDirection);
 
-    // Check and limit X-axis rotation
-    if (currentRotation.x + rotateX > maxTiltAngle) {
-        rotateX = maxTiltAngle - currentRotation.x;
-    } else if (currentRotation.x + rotateX < -maxTiltAngle) {
-        rotateX = -maxTiltAngle - currentRotation.x;
-    }
+    // Get the camera's right and up directions
+    const cameraUp = new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion);
+    const cameraRight = new THREE.Vector3().crossVectors(cameraUp, cameraDirection).normalize();
 
-    // Check and limit Z-axis rotation
-    if (currentRotation.z + rotateZ > maxTiltAngle) {
-        rotateZ = maxTiltAngle - currentRotation.z;
-    } else if (currentRotation.z + rotateZ < -maxTiltAngle) {
-        rotateZ = -maxTiltAngle - currentRotation.z;
-    }
-
-    // Create rotation quaternions based on camera orientation
-    // let rotQuaternionX, rotQuaternionY, rotQuaternionZ;
-
-    // // Adjust rotations based on camera orientation
-    // if (rotateDirection.x !== 0) {
-    //     // Tilt forwards/backwards relative to camera view
-    //     rotQuaternionX = new THREE.Quaternion().setFromAxisAngle(cameraRight, rotateX);
-    // } else {
-    //     rotQuaternionX = new THREE.Quaternion();
-    // }
-    //
-    // if (rotateDirection.y !== 0) {
-    //     // Rotate around camera up axis
-    //     rotQuaternionY = new THREE.Quaternion().setFromAxisAngle(cameraUp, rotateY);
-    // } else {
-    //     rotQuaternionY = new THREE.Quaternion();
-    // }
-    //
-    // if (rotateDirection.z !== 0) {
-    //     // Roll relative to camera forward axis
-    //     rotQuaternionZ = new THREE.Quaternion().setFromAxisAngle(cameraForward, rotateZ);
-    // } else {
-    //     rotQuaternionZ = new THREE.Quaternion();
-    // }
-
-    // // Get current rotation as Euler angles for checking limits
-    // let currentRotation = new THREE.Euler().setFromQuaternion(maze.quaternion);
 
     // Create quaternions for constrained rotations
-    let rotQuaternionX = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), rotateX);
+    const rotQuaternionX = new THREE.Quaternion().setFromAxisAngle(cameraRight, rotateX); // Tilt (X-axis)
+    const rotQuaternionZ = new THREE.Quaternion().setFromAxisAngle(cameraDirection, rotateZ); // Roll (Z-axis)
+
     let rotQuaternionY = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), rotateY);
-    let rotQuaternionZ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), rotateZ);
 
     // Combine the rotations
     let combinedRotation = new THREE.Quaternion().multiplyQuaternions(
@@ -643,17 +590,13 @@ function rotateKinematic() {
         new THREE.Quaternion().multiplyQuaternions(rotQuaternionY, rotQuaternionX)
     );
 
-    // // Apply rotation limits
-    // let maxAngle = Math.PI / 9; // 20-degree limit
-    // let rotationEuler = new THREE.Euler().setFromQuaternion(combinedRotation);
+    if (
+        Math.abs(currentRotation.x + combinedRotation.x) >= 0.5 ||
+        Math.abs(currentRotation.z + combinedRotation.z) >= 0.5
+    )return
 
-    // rotationEuler.x = Math.max(-maxAngle, Math.min(maxAngle, rotationEuler.x));
-    // rotationEuler.z = Math.max(-maxAngle, Math.min(maxAngle, rotationEuler.z));
+    // console.log(`rotation: ${combinedRotation.x}, ${combinedRotation.y}, ${combinedRotation.z}`)
 
-    // // Recreate quaternion with limited rotation
-    // combinedRotation.setFromEuler(rotationEuler);
-
-    // Apply the combined rotation to both maze and ground
     maze.quaternion.multiply(combinedRotation);
     ground.quaternion.copy(maze.quaternion);
     glass.quaternion.copy(maze.quaternion);
@@ -662,7 +605,7 @@ function rotateKinematic() {
     glass.position.y = -0.13;
 
     // Sync finish line rotation but preserve its position relative to the maze
-    let finishLineOffset = new THREE.Vector3(0, -0.45, 4); // TEST FINISH (5)
+    let finishLineOffset = new THREE.Vector3(0, -0.45, 10); // TEST FINISH (5)
     // let finishLineOffset = new THREE.Vector3(0.5, -0.45, -10.5); // REAL FINISH
     finishLineOffset.applyQuaternion(maze.quaternion); // Rotate the offset
     finishLine.position.copy(maze.position).add(finishLineOffset);
@@ -731,20 +674,8 @@ function update() {
         rotateKinematic()
     // var rotateAngle = Math.PI / 2 * delta
 
-    // Rotate maze
-    // if (keyboard.pressed("Q")) maze.rotateOnAxis(new THREE.Vector3(0, 1, 0), rotateAngle);
-    // if (keyboard.pressed("E")) maze.rotateOnAxis(new THREE.Vector3(0, 1, 0), -rotateAngle);
-    //
-    // // Tilt maze
-    // if (keyboard.pressed("W")) maze.rotateOnAxis(new THREE.Vector3(1, 0, 0), rotateAngle);
-    // if (keyboard.pressed("S")) maze.rotateOnAxis(new THREE.Vector3(1, 0, 0), -rotateAngle);
-    // if (keyboard.pressed("D")) maze.rotateOnAxis(new THREE.Vector3(0, 0, 1), rotateAngle);
-    // if (keyboard.pressed("A")) maze.rotateOnAxis(new THREE.Vector3(0, 0, 1), -rotateAngle);
-
-
     // Update physics world
     updatePhysics(delta);
-
 
     // Update Three.js ball mesh position based on Cannon.js body position
 
