@@ -24,6 +24,7 @@ let timerInterval;
 let elapsedTime = 0;
 
 let fireworkIsOn = false;
+let unstuckCounter = 0;
 
 Ammo().then(setupPhysics)
 
@@ -590,10 +591,31 @@ function rotateKinematic() {
         new THREE.Quaternion().multiplyQuaternions(rotQuaternionY, rotQuaternionX)
     );
 
-    if (
-        Math.abs(currentRotation.x + combinedRotation.x) >= 0.5 ||
-        Math.abs(currentRotation.z + combinedRotation.z) >= 0.5
-    )return
+    if (Math.abs(currentRotation.x + combinedRotation.x) >= 0.5 ||
+        Math.abs(currentRotation.z + combinedRotation.z) >= 0.5)
+    {
+     if(combinedRotation.x !== 0 || combinedRotation.z !== 0){
+         unstuckCounter++;
+     }
+     if (unstuckCounter > 200){
+         if (currentRotation.x + combinedRotation.x < -0.5) {
+             combinedRotation.x = 0.01;
+         } else if (currentRotation.x + combinedRotation.x > 0.5) {
+             combinedRotation.x = -0.01;
+         }
+
+         // Adjust `combinedRotation.z`
+         if (currentRotation.z + combinedRotation.z < -0.5) {
+             combinedRotation.z = 0.01;
+         } else if (currentRotation.z + combinedRotation.z > 0.5) {
+             combinedRotation.z = -0.01;
+         }
+         console.log("Unstucking maze")
+         unstuckCounter = 0
+     }else {
+         return
+     }
+    }
 
     // console.log(`rotation: ${combinedRotation.x}, ${combinedRotation.y}, ${combinedRotation.z}`)
 
