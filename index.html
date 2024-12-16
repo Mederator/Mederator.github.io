@@ -5,6 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>TiltQuest</title>
+  <link rel="icon" type="image/png" href="assets/TiltQuest_Logo_WB_C.png">
   <style>
     body { margin: 0; }
     canvas { display: block; }
@@ -13,23 +14,24 @@
     {
       "imports": {
         "three": "https://cdn.jsdelivr.net/npm/three@0.129.0/build/three.module.js",
+        "three/examples/jsm/controls/OrbitControls": "https://cdn.skypack.dev/three@0.129.0/examples/jsm/controls/OrbitControls.js",
+        "three/examples/jsm/loaders/GLTFLoader": "https://cdn.skypack.dev/three@0.129.0/examples/jsm/loaders/GLTFLoader.js",
         "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.129.0/examples/jsm/",
-         "three-to-ammo": "https://unpkg.com/three-to-ammo@1.0.1/index.js"
+        "three-to-ammo": "https://unpkg.com/three-to-ammo@1.0.1/index.js"
       }
     }
   </script>
-
   <script type="module">
     import * as THREE from 'three';
     window.THREE = THREE;
   </script>
   <link rel="stylesheet" href="css/menu.css">
-
+  <link rel="stylesheet" href="css/game-overlays.css">
+  <link rel="stylesheet" href="css/end-screen.css">
 </head>
 
-<!--<script src="https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.min.js"></script>-->
-
 <body>
+
   <div id="menu" class="menu">
     <img src="assets/TitlQuest_Logo_TB.png" alt="Logo Image">
     <button id="startButton">Start</button>
@@ -39,12 +41,10 @@
   <div id="controls" class="menu" style="display: none;">
     <h1>Controls</h1>
     <ul>
-      <li>W: Tilt Up</li>
-      <li>S: Tilt Down</li>
-      <li>A: Tilt Left</li>
-      <li>D: Tilt Right</li>
-      <li>Q: Rotate Left</li>
-      <li>E: Rotate Right</li>
+      <li>W: Tilt Top</li>
+      <li>S: Tilt Bottom</li>
+      <li>A: Tilt Left Side</li>
+      <li>D: Tilt Right Side</li>
     </ul>
     <button id="backToMenuButton">Back</button>
   </div>
@@ -54,25 +54,15 @@
     <p>Loading, please wait...</p>
   </div>
 
+  <button id="menuButton">☰</button>
   <div id="timer">00:00</div>
 
-  <button id="menuButton">☰</button>
-
-  <!-- End Screen Background -->
-  <div id="endScreen">
-    <!-- Background only -->
-  </div>
-
-  <!-- Fireworks Canvas -->
+  <div id="endScreen"></div>
   <canvas id="fireworkCanvas"></canvas>
-
-  <!-- End Screen Text -->
   <div id="endText">
     <h1>Congratulations, you won!</h1>
     <p><span id="time"></span></p>
   </div>
-
-<!--  <script src="fireworks.js"></script>-->
 
   <canvas class="webgl"></canvas>
   <script src="js/ammo.js"></script>
@@ -82,7 +72,3 @@
 </body>
 
 </html>
-<!--"ammo-debug-drawer": "https://unpkg.com/ammo-debug-drawer@1.0.1/AmmoDebugDrawer.js"-->
-
-
-

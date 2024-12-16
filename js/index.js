@@ -1,36 +1,34 @@
-import { OrbitControls } from 'https://cdn.skypack.dev/three@0.129.0/examples/jsm/controls/OrbitControls.js'
-import { GLTFLoader } from 'https://cdn.skypack.dev/three@0.129.0/examples/jsm/loaders/GLTFLoader.js'
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 import * as threeToAmmo from "three-to-ammo"
 import { TYPE } from "three-to-ammo";
+
 // import {THREE} from './THREE.AmmoDebugDrawer.js'; // Import your custom class
 // import {AmmoDebugDrawer, AmmoDebugConstants, DefaultBufferSize} from "ammo-debug-drawer"
 
 const FLAGS = { CF_KINEMATIC_OBJECT: 2 }
 const STATE = { DISABLE_DEACTIVATION : 4 }
 
-var sizes, canvas, camera, scene, light1, light2, renderer, controls, loader, maze, ground, glass, ball, finishLine, fireworkScene, world, tmpTrans
+let sizes, canvas, camera, scene, light1, light2, renderer, controls, loader,
+    maze, ground, glass, ball, finishLine, fireworkScene, tmpTrans,
+    dynamicsWorld, timerInterval;
 
-var clock = new THREE.Clock();
-var keyboard = new THREEx.KeyboardState()
-var dynamicsWorld;
-let rigidBodies = []
-var debugDrawer;
+const clock = new THREE.Clock();
 let tmpPos = new THREE.Vector3(), tmpQuat = new THREE.Quaternion();
 let rotateDirection = { x: 0, y: 0, z: 0 };
+let rigidBodies = [];
 
-let ammoTmpPos = null, ammoTmpQuat = null;
-
-let timerInterval;
-let elapsedTime = 0;
-
+let ammoTmpPos = null;
+let ammoTmpQuat = null;
 let fireworkIsOn = false;
+let elapsedTime = 0;
 let unstuckCounter = 0;
+
+let debugDrawer;
 
 Ammo().then(setupPhysics)
 
-
 function setupPhysics() {
-
     tmpTrans = new Ammo.btTransform();
     ammoTmpPos = new Ammo.btVector3();
     ammoTmpQuat = new Ammo.btQuaternion();
@@ -44,59 +42,56 @@ function setupPhysics() {
     dynamicsWorld.setGravity(new Ammo.btVector3(0, -10, 0));
 }
 
-function initDebug() {
-    debugDrawer = new THREEx.AmmoDebugDrawer(scene, dynamicsWorld, {});
-    debugDrawer.enable()
-}
-
+// function initDebug() {
+//     debugDrawer = new THREEx.AmmoDebugDrawer(scene, dynamicsWorld, {});
+//     debugDrawer.enable()
+// }
 
 function init() {
-
     sizes = {
         width: window.innerWidth,
         height: window.innerHeight
     }
 
     // Canvas
-    canvas = document.querySelector('.webgl')
+    canvas = document.querySelector('.webgl');
 
     // Camera
-    camera = new THREE.PerspectiveCamera(75, sizes.width / sizes.height, 0.1, 100)
-    camera.position.set(0, 1.5, 2)
+    camera = new THREE.PerspectiveCamera(75, sizes.width / sizes.height, 0.1, 100);
+    camera.position.set(0, 1.5, 2);
 
     // Renderer
     renderer = new THREE.WebGLRenderer({
         canvas: canvas
     })
-    renderer.setSize(sizes.width, sizes.height)
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio), 2)
-    renderer.shadowMap.enabled = true
-    renderer.gammaOutput = true
+    renderer.setSize(sizes.width, sizes.height);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio), 2);
+    renderer.shadowMap.enabled = true;
+    renderer.gammaOutput = true;
     document.body.appendChild(renderer.domElement);
 
     // Scene
-    scene = new THREE.Scene()
+    scene = new THREE.Scene();
 
     // Light
-    light1 = new THREE.DirectionalLight(0xffffff, 0.75)
-    light1.position.set(1, 10, 3)
-    scene.add(light1)
-    light2 = new THREE.DirectionalLight(0xffffff, 0.75)
-    light2.position.set(1, 10, -3)
-    scene.add(light2)
+    light1 = new THREE.DirectionalLight(0xffffff, 0.75);
+    light1.position.set(1, 10, 3);
+    scene.add(light1);
+    light2 = new THREE.DirectionalLight(0xffffff, 0.75);
+    light2.position.set(1, 10, -3);
+    scene.add(light2);
 
     // Loader
-    loader = new GLTFLoader()
+    loader = new GLTFLoader();
 
     // Control
-    controls = new OrbitControls(camera, renderer.domElement)
+    controls = new OrbitControls(camera, renderer.domElement);
 
-    // test
-    // Create a separate renderer for the fireworks
+    // Separate renderer for the fireworks
     const fireworkCanvas = document.getElementById('fireworkCanvas');
     const fireworkRenderer = new THREE.WebGLRenderer({
         canvas: fireworkCanvas,
-        alpha: true, // Allow transparency
+        alpha: true,
     });
     fireworkRenderer.setSize(window.innerWidth, window.innerHeight);
     fireworkRenderer.setPixelRatio(window.devicePixelRatio);
@@ -120,70 +115,22 @@ function init() {
 }
 
 function render() {
-    update()
+    update();
 
     if (debugDrawer) {
-        debugDrawer.update()
+        debugDrawer.update();
     }
 
     renderer.render(scene, camera);
     requestAnimationFrame(render);
 }
 
-function createGround() {
-    loader.load('../models/ground.glb', function (glb) {
-        // console.log(glb)
-        let pos = { x: 0, y: 0, z: 0 };
-        let scale = { x: 1, y: 1, z: 1 };
-        let quat = { x: 0, y: 0, z: 0, w: 1 };
-        let mass = 0;
-        ground = glb.scene
-        ground.scale.set(scale.x, scale.y, scale.z)
-        ground.position.set(pos.x, pos.y, pos.z)
-        ground.rotateOnAxis(new THREE.Vector3(0, 0, 0), Math.PI)
-        scene.add(ground)
+function addObjects() {
+    createStars();
+    createGround();
+    createMaze();
 
-        //Ammojs Section
-        let transform = new Ammo.btTransform();
-        transform.setIdentity();
-        transform.setOrigin(new Ammo.btVector3(pos.x, pos.y, pos.z));
-        transform.setRotation(new Ammo.btQuaternion(quat.x, quat.y, quat.z, quat.w));
-        let motionState = new Ammo.btDefaultMotionState(transform);
-        const shapeComponent = {
-            el: { object3D: ground },
-            data: {
-                offset: new THREE.Vector3(0, -0.85, 0),
-                type: TYPE.HULL, // Collision shape type
-            }
-        };
-        let colShapes = _createCollisionShape(shapeComponent)
-        let compoundShape = new Ammo.btCompoundShape();
-
-        // Combine all collision shapes
-        colShapes.forEach((shape, index) => {
-            compoundShape.addChildShape(shape.localTransform, shape);
-
-        });
-        let localInertia = new Ammo.btVector3(0, 0, 0);
-        compoundShape.calculateLocalInertia(mass, localInertia);
-
-        let rbInfo = new Ammo.btRigidBodyConstructionInfo(mass, motionState, compoundShape, localInertia);
-        let body = new Ammo.btRigidBody(rbInfo);
-
-
-        body.setActivationState( STATE.DISABLE_DEACTIVATION );
-        body.setCollisionFlags(FLAGS.CF_KINEMATIC_OBJECT);
-        dynamicsWorld.addRigidBody(body);
-        ground.userData.physicsBody = body;
-        rigidBodies.push(ground);
-
-        // Create the ball after the maze has loaded
-
-    }, function (xhr) {
-        // console.log((xhr.loaded/xhr.total * 100) + "% loaded")
-    }, function (error) {
-        console.log("An error occured" + error)
-    })
+    createFinishLine({ width: 1, height: 0.6, depth: 0.5 });
 }
 
 function createStars() {
@@ -208,6 +155,60 @@ function createStars() {
     });
     var starField = new THREE.Points( starsGeometry, starsMaterial );
     scene.add( starField );
+}
+
+function createGround() {
+    loader.load('../models/ground.glb', function (glb) {
+        let pos = { x: 0, y: 0, z: 0 };
+        let scale = { x: 1, y: 1, z: 1 };
+        let quat = { x: 0, y: 0, z: 0, w: 1 };
+        let mass = 0;
+        ground = glb.scene
+        ground.scale.set(scale.x, scale.y, scale.z)
+        ground.position.set(pos.x, pos.y, pos.z)
+        ground.rotateOnAxis(new THREE.Vector3(0, 0, 0), Math.PI)
+        scene.add(ground)
+
+        // Ammojs Section
+        let transform = new Ammo.btTransform();
+        transform.setIdentity();
+        transform.setOrigin(new Ammo.btVector3(pos.x, pos.y, pos.z));
+        transform.setRotation(new Ammo.btQuaternion(quat.x, quat.y, quat.z, quat.w));
+        let motionState = new Ammo.btDefaultMotionState(transform);
+        const shapeComponent = {
+            el: { object3D: ground },
+            data: {
+                offset: new THREE.Vector3(0, -0.85, 0),
+                // Collision shape type
+                type: TYPE.HULL,
+            }
+        };
+        let colShapes = _createCollisionShape(shapeComponent)
+        let compoundShape = new Ammo.btCompoundShape();
+
+        // Combine all collision shapes
+        colShapes.forEach((shape, index) => {
+            compoundShape.addChildShape(shape.localTransform, shape);
+
+        });
+        let localInertia = new Ammo.btVector3(0, 0, 0);
+        compoundShape.calculateLocalInertia(mass, localInertia);
+
+        let rbInfo = new Ammo.btRigidBodyConstructionInfo(mass, motionState, compoundShape, localInertia);
+        let body = new Ammo.btRigidBody(rbInfo);
+
+        body.setActivationState( STATE.DISABLE_DEACTIVATION );
+        body.setCollisionFlags(FLAGS.CF_KINEMATIC_OBJECT);
+        dynamicsWorld.addRigidBody(body);
+        ground.userData.physicsBody = body;
+        rigidBodies.push(ground);
+    },
+    // function (xhr) {
+    //     console.log((xhr.loaded/xhr.total * 100) + "% loaded");
+    // },
+    function (error) {
+        console.log("An error occured" + error);
+    })
 }
 
 function createMaze() {
@@ -263,28 +264,19 @@ function createMaze() {
 
         loadingScreen.style.display = 'none';
 
-        // Create the ball after the maze has loaded
+        // Create the Glass and Ball after the maze has loaded
         createGlass();
         createBall();
-    }, function (xhr) {
-        // console.log((xhr.loaded/xhr.total * 100) + "% loaded")
-    }, function (error) {
-        console.log("An error occured" + error)
+    },
+    // function (xhr) {
+    //     console.log((xhr.loaded/xhr.total * 100) + "% loaded");
+    // },
+    function (error) {
+        console.log("An error occured" + error);
     })
 }
 
-function addObjects() {
-    createStars();
-
-    // Maze
-    createGround();
-    createMaze();
-
-    createFinishLine({ x: 0, y: -0.45, z:10 }, { width: 1, height: 1, depth: 0.5 });
-}
-
 function createBall() {
-
     setTimeout(() => {
         const radius = 0.2;
         let pos = { x: 0, y: -0.5, z: 0 };
@@ -314,15 +306,11 @@ function createBall() {
         let rbInfo = new Ammo.btRigidBodyConstructionInfo(mass, motionState, colShape, localInertia);
         let body = new Ammo.btRigidBody(rbInfo);
 
-
         dynamicsWorld.addRigidBody(body);
 
         ball.userData.physicsBody = body;
         rigidBodies.push(ball);
-
-        console.log("Ball delay");
     }, 500);
-
 }
 
 function createGlass() {
@@ -331,12 +319,10 @@ function createGlass() {
     const radiusBottom = 10.3;
     const height = 0.1;
     const radialSegments = 100;
-
     const cylinderGeometry = new THREE.CylinderGeometry(radiusTop, radiusBottom, height, radialSegments);
 
-    // Create a material that simulates glass
+    // Create a material
     const glassMaterial = new THREE.MeshPhysicalMaterial({
-        // color: 0x88ccee,
         color: 0xb5e0f5,
         roughness: 0.1,
         transmission: 0.9,
@@ -353,15 +339,13 @@ function createGlass() {
     glass = new THREE.Mesh(cylinderGeometry, glassMaterial);
 
     // Position the cylinder
-    glass.position.set(0, -0.13, 0); // Adjust position as needed
-
-    // Add the cylinder to the scene
+    glass.position.set(0, -0.13, 0);
     scene.add(glass);
 
     // Ammo.js Section
-    const pos = { x: 0, y: -0.13, z: 0 }; // Position for Ammo.js
-    const quat = { x: 0, y: 0, z: 0, w: 1 }; // Quaternion for Ammo.js
-    const mass = 0; // Glass should typically be static, so mass is 0
+    const pos = { x: 0, y: -0.13, z: 0 };
+    const quat = { x: 0, y: 0, z: 0, w: 1 };
+    const mass = 0;
 
     let transform = new Ammo.btTransform();
     transform.setIdentity();
@@ -372,16 +356,16 @@ function createGlass() {
     // Create a cylinder collision shape
     const colShape = new Ammo.btCylinderShape(new Ammo.btVector3(radiusTop, height / 2, radiusBottom));
     colShape.setLocalScaling(new Ammo.btVector3(1, 1, 1));
-    // colShape.setMargin(0.01);
 
-    let localInertia = new Ammo.btVector3(0, 0, 0); // Static object doesn't need inertia
+    let localInertia = new Ammo.btVector3(0, 0, 0);
     colShape.calculateLocalInertia(mass, localInertia);
 
     let rbInfo = new Ammo.btRigidBodyConstructionInfo(mass, motionState, colShape, localInertia);
     let body = new Ammo.btRigidBody(rbInfo);
 
-    body.setActivationState(STATE.DISABLE_DEACTIVATION); // Ensure the body stays active
-    body.setCollisionFlags(FLAGS.CF_KINEMATIC_OBJECT); // Mark as kinematic
+    // Ensure the body stays active
+    body.setActivationState(STATE.DISABLE_DEACTIVATION);
+    body.setCollisionFlags(FLAGS.CF_KINEMATIC_OBJECT);
 
     // Add the body to the physics world
     dynamicsWorld.addRigidBody(body);
@@ -391,13 +375,12 @@ function createGlass() {
     rigidBodies.push(glass);
 }
 
-function createFinishLine(position, size) {
+function createFinishLine(size) {
     // Default parameters for size and position
     const defaultPosition = { x: 0, y: 0.1, z: 10 };
     const defaultSize = { width: 2, height: 0.2, depth: 0.1 };
 
     // Use provided position and size, or defaults
-    position = position || defaultPosition;
     size = size || defaultSize;
 
     // Create geometry and material for the finish line
@@ -414,17 +397,15 @@ function createFinishLine(position, size) {
     finishLine = new THREE.Mesh(geometry, material);
 
     // Position the finish line
-    finishLine.position.set(position.x, position.y, position.z);
-
-    // Add it to the scene
+    finishLine.position.set(defaultPosition.x, defaultPosition.y, defaultPosition.z);
     scene.add(finishLine);
 
-    // Ammo.js collision shape (optional)
-    const mass = 0; // Static object
+    // Ammo.js collision shape
+    const mass = 0;
     let transform = new Ammo.btTransform();
     transform.setIdentity();
-    transform.setOrigin(new Ammo.btVector3(position.x, position.y, position.z));
-    transform.setRotation(new Ammo.btQuaternion(0, 0, 0, 1)); // No rotation
+    transform.setOrigin(new Ammo.btVector3(defaultPosition.x, defaultPosition.y, defaultPosition.z));
+    transform.setRotation(new Ammo.btQuaternion(0, 0, 0, 1));
 
     let motionState = new Ammo.btDefaultMotionState(transform);
 
@@ -434,14 +415,15 @@ function createFinishLine(position, size) {
     );
     colShape.setMargin(0.01);
 
-    let localInertia = new Ammo.btVector3(0, 0, 0); // No inertia for static objects
+    let localInertia = new Ammo.btVector3(0, 0, 0);
     colShape.calculateLocalInertia(mass, localInertia);
 
     let rbInfo = new Ammo.btRigidBodyConstructionInfo(mass, motionState, colShape, localInertia);
     let body = new Ammo.btRigidBody(rbInfo);
 
-    body.setActivationState(STATE.DISABLE_DEACTIVATION); // Ensure the body stays active
-    body.setCollisionFlags(FLAGS.CF_KINEMATIC_OBJECT); // Kinematic object
+    // Ensure the body stays active
+    body.setActivationState(STATE.DISABLE_DEACTIVATION);
+    body.setCollisionFlags(FLAGS.CF_KINEMATIC_OBJECT);
     dynamicsWorld.addRigidBody(body);
 
     finishLine.userData.physicsBody = body;
@@ -450,431 +432,7 @@ function createFinishLine(position, size) {
     return finishLine;
 }
 
-function updatePhysics(deltaTime) {
-    dynamicsWorld.stepSimulation(deltaTime, 10);
-    // Update rigid bodies
-    for (let i = 0; i < rigidBodies.length; i++) {
-        let objThree = rigidBodies[i];
-        let objAmmo = objThree.userData.physicsBody;
-        let ms = objAmmo.getMotionState();
-        if (ms) {
-
-            ms.getWorldTransform(tmpTrans);
-            let p = tmpTrans.getOrigin();
-            let q = tmpTrans.getRotation();
-            objThree.position.set(p.x(), p.y(), p.z());
-            objThree.quaternion.set(q.x(), q.y(), q.z(), q.w());
-
-        }
-    }
-
-    // Detect collision between ball and finish line
-    let numManifolds = dynamicsWorld.getDispatcher().getNumManifolds();
-    for (let i = 0; i < numManifolds; i++) {
-        let manifold = dynamicsWorld.getDispatcher().getManifoldByIndexInternal(i);
-        let body0 = Ammo.castObject(manifold.getBody0(), Ammo.btRigidBody);
-        let body1 = Ammo.castObject(manifold.getBody1(), Ammo.btRigidBody);
-
-        // Check if one of the bodies is the ball and the other is the finish line
-        if (
-            (body0 === finishLine.userData.physicsBody && body1 === ball.userData.physicsBody) ||
-            (body1 === finishLine.userData.physicsBody && body0 === ball.userData.physicsBody)
-        ) {
-            // Get the closest contact point
-            let numContacts = manifold.getNumContacts();
-            for (let j = 0; j < numContacts; j++) {
-                let pt = manifold.getContactPoint(j);
-
-                // Check if the distance is within a small threshold
-                if (pt.getDistance() <= 0.1) {
-                    console.log("Ball touched the finish line!");
-                    showEndScreen();
-                    return; // Avoid multiple triggers in the same frame
-                }
-            }
-        }
-    }
-}
-
-function _createCollisionShape(shapeComponent) {
-    const data = shapeComponent.data;
-    const vertices = [];
-    const matrices = [];
-    const indexes = [];
-    const root = shapeComponent.el.object3D;
-    const matrixWorld = root.matrixWorld;
-
-    threeToAmmo.iterateGeometries(root, data, (vertexArray, matrixArray, indexArray) => {
-        vertices.push(vertexArray);
-        matrices.push(matrixArray);
-        indexes.push(indexArray);
-    });
-    console.log("data: ", data)
-    return threeToAmmo.createCollisionShapes(vertices, matrices, indexes, matrixWorld.elements, data);
-
-}
-
-
-function handleKeyDown(event) {
-
-    let keyCode = event.keyCode;
-
-    switch(keyCode) {
-        case 87: // W: TILT UP (Rotate around X-axis positively)
-            rotateDirection.x = 1;
-            break;
-        case 83: // S: TILT DOWN (Rotate around X-axis negatively)
-            rotateDirection.x = -1;
-            break;
-        case 65: // A: ROLL LEFT (Rotate around Z-axis positively)
-            rotateDirection.z = -1;
-            break;
-        case 68: // D: ROLL RIGHT (Rotate around Z-axis negatively)
-            rotateDirection.z = 1;
-            break;
-    }
-}
-
-function handleKeyUp(event){
-    let keyCode = event.keyCode;
-
-    switch(keyCode) {
-        case 87: // W: TILT UP (Rotate around X-axis positively)
-            rotateDirection.x = 0;
-            break;
-        case 83: // S: TILT DOWN (Rotate around X-axis negatively)
-            rotateDirection.x = 0;
-            break;
-        case 65: // A: ROTATE LEFT (Rotate around Y-axis positively)
-            rotateDirection.z = 0;
-            break;
-        case 68: // D: ROTATE RIGHT (Rotate around Y-axis negatively)
-            rotateDirection.z = 0;
-            break;
-    }
-
-}
-
-function rotateKinematic() {
-    let rotationFactor = 0.01; // Adjust for desired speed
-    let maxTiltAngle = Math.PI / 9; // Maximum tilt angle (30 degrees)
-
-    // Compute rotation values
-    let rotateX = rotateDirection.x * rotationFactor;
-    let rotateY = rotateDirection.y * rotationFactor;
-    let rotateZ = rotateDirection.z * rotationFactor;
-
-    // Get current rotation as Euler angles for checking limits
-    let currentRotation = new THREE.Euler().setFromQuaternion(maze.quaternion);
-
-
-    // Get camera's local axes relative to the maze
-
-
-    const cameraDirection = new THREE.Vector3();
-    camera.getWorldDirection(cameraDirection);
-
-    // Get the camera's right and up directions
-    const cameraUp = new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion);
-    const cameraRight = new THREE.Vector3().crossVectors(cameraUp, cameraDirection).normalize();
-
-
-    // Create quaternions for constrained rotations
-    const rotQuaternionX = new THREE.Quaternion().setFromAxisAngle(cameraRight, rotateX); // Tilt (X-axis)
-    const rotQuaternionZ = new THREE.Quaternion().setFromAxisAngle(cameraDirection, rotateZ); // Roll (Z-axis)
-
-    let rotQuaternionY = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), rotateY);
-
-    // Combine the rotations
-    let combinedRotation = new THREE.Quaternion().multiplyQuaternions(
-        rotQuaternionZ,
-        new THREE.Quaternion().multiplyQuaternions(rotQuaternionY, rotQuaternionX)
-    );
-
-    if (Math.abs(currentRotation.x + combinedRotation.x) >= 0.5 ||
-        Math.abs(currentRotation.z + combinedRotation.z) >= 0.5)
-    {
-     if(combinedRotation.x !== 0 || combinedRotation.z !== 0){
-         unstuckCounter++;
-     }
-     if (unstuckCounter > 200){
-         if (currentRotation.x + combinedRotation.x < -0.5) {
-             combinedRotation.x = 0.01;
-         } else if (currentRotation.x + combinedRotation.x > 0.5) {
-             combinedRotation.x = -0.01;
-         }
-
-         // Adjust `combinedRotation.z`
-         if (currentRotation.z + combinedRotation.z < -0.5) {
-             combinedRotation.z = 0.01;
-         } else if (currentRotation.z + combinedRotation.z > 0.5) {
-             combinedRotation.z = -0.01;
-         }
-         console.log("Unstucking maze")
-         unstuckCounter = 0
-     }else {
-         return
-     }
-    }
-
-    // console.log(`rotation: ${combinedRotation.x}, ${combinedRotation.y}, ${combinedRotation.z}`)
-
-    maze.quaternion.multiply(combinedRotation);
-    ground.quaternion.copy(maze.quaternion);
-    glass.quaternion.copy(maze.quaternion);
-    finishLine.quaternion.copy(maze.quaternion);
-
-    glass.position.y = -0.13;
-
-    // Sync finish line rotation but preserve its position relative to the maze
-    let finishLineOffset = new THREE.Vector3(0, -0.45, 10); // TEST FINISH (5)
-    // let finishLineOffset = new THREE.Vector3(0.5, -0.45, -10.5); // REAL FINISH
-    finishLineOffset.applyQuaternion(maze.quaternion); // Rotate the offset
-    finishLine.position.copy(maze.position).add(finishLineOffset);
-    finishLine.quaternion.copy(maze.quaternion);
-
-    // Sync with Ammo.js
-    maze.getWorldPosition(tmpPos);
-    maze.getWorldQuaternion(tmpQuat);
-
-    let physicsBodyGr = ground.userData.physicsBody;
-    let physicsBodyM = maze.userData.physicsBody;
-    let physicsBodyGlass = glass.userData.physicsBody;
-    let physicsFinishLine = finishLine.userData.physicsBody;
-
-    let msGr = physicsBodyGr.getMotionState();
-    let msM = physicsBodyM.getMotionState();
-    let msGlass = physicsBodyGlass.getMotionState();
-    let msFinishLine = physicsFinishLine.getMotionState();
-    if (msM && msGr && msGlass && msFinishLine) {
-        ammoTmpPos.setValue(tmpPos.x, tmpPos.y, tmpPos.z);
-        ammoTmpQuat.setValue(tmpQuat.x, tmpQuat.y, tmpQuat.z, tmpQuat.w);
-
-        tmpTrans.setIdentity();
-        tmpTrans.setOrigin(ammoTmpPos);
-        tmpTrans.setRotation(ammoTmpQuat);
-
-        msM.setWorldTransform(tmpTrans);
-        msGr.setWorldTransform(tmpTrans);
-        msGlass.setWorldTransform(tmpTrans);
-        msFinishLine.setWorldTransform(tmpTrans);
-
-        // Additional position correction for glass
-        let glassOrigin = tmpTrans.getOrigin();
-        glassOrigin.setY(glassOrigin.y() - 0.13);
-        tmpTrans.setOrigin(glassOrigin);
-        msGlass.setWorldTransform(tmpTrans);
-
-        // Update finish line transform with specific offset
-        let finishLineTransform = new Ammo.btTransform();
-        finishLineTransform.setIdentity();
-        finishLineTransform.setOrigin(new Ammo.btVector3(
-            finishLine.position.x,
-            finishLine.position.y,
-            finishLine.position.z
-        ));
-        finishLineTransform.setRotation(new Ammo.btQuaternion(
-            tmpQuat.x,
-            tmpQuat.y,
-            tmpQuat.z,
-            tmpQuat.w
-        ));
-        msFinishLine.setWorldTransform(finishLineTransform);
-    }
-}
-
-function setupEventHandlers(){
-
-    window.addEventListener( 'keydown', handleKeyDown, false);
-    window.addEventListener( 'keyup', handleKeyUp, false);
-
-}
-
-function update() {
-    var delta = clock.getDelta()
-    if (maze && ground)
-        rotateKinematic()
-    // var rotateAngle = Math.PI / 2 * delta
-
-    // Update physics world
-    updatePhysics(delta);
-
-    // Update Three.js ball mesh position based on Cannon.js body position
-
-    updateCameraZoomLimits();
-    controls.update()
-}
-
-function clearScene() {
-    // Clear physics bodies
-    // clearPhysicsWorld();
-
-    if (scene != null) {
-        scene.traverse((object) => {
-            if (object.isMesh) {
-                object.geometry.dispose(); // Dispose of geometry
-                if (object.material.isMaterial) {
-                    cleanMaterial(object.material);
-                }
-            }
-        });
-    }
-
-    // Remove all children from the scene
-    while (scene !=null && scene.children != null && scene.children.length > 0) {
-        scene.remove(scene.children[0]);
-    }
-
-    // Clear rigidBodies array
-    rigidBodies = [];
-}
-
-function clearPhysicsWorld() {
-    for (let i = 0; i < rigidBodies.length; i++) {
-        let body = rigidBodies[i].userData.physicsBody;
-        dynamicsWorld.removeRigidBody(body); // Remove from physics world
-    }
-}
-
-function resetVariables() {
-    maze = null;
-    ground = null;
-
-    if (dynamicsWorld != null) {
-        // Remove all rigid bodies from the physics world
-        for (let i = 0; i < rigidBodies.length; i++) {
-            let body = rigidBodies[i].userData.physicsBody;
-            if (body) {
-                dynamicsWorld.removeRigidBody(body);
-            }
-        }
-
-        // Clear the rigidBodies array
-        rigidBodies = [];
-    }
-}
-
-function updateCameraZoomLimits() {
-    let maxZoomOut = 30; // Maximum distance
-    let minZoomIn = 2; // Minimum distance
-    let center = new THREE.Vector3(0, 0, 0); // Scene's center point
-
-    let distance = camera.position.distanceTo(center); // Distance from camera to center
-
-    // Clamp the camera distance
-    if (distance > maxZoomOut) {
-        camera.position.setLength(maxZoomOut); // Set max distance
-    } else if (distance < minZoomIn) {
-        camera.position.setLength(minZoomIn); // Set min distance
-    }
-}
-
-// Event listener to hide the menu and start the game
-document.getElementById('startButton').addEventListener('click', function () {
-    document.getElementById('menu').style.display = 'none';
-    document.getElementById('menuButton').style.display = 'block';
-    const timerDiv = document.getElementById('timer');
-    if (timerDiv) {
-        timerDiv.style.display = 'flex';
-        timerDiv.style.backgroundColor = '#ffffff';
-        timerDiv.style.color = '#000000';
-    }
-
-    clearScene(); // Clear the scene
-    resetVariables(); // Reset variables
-
-    // Call your existing initialization functions
-    init()
-    // initDebug()
-    addObjects()
-    setupEventHandlers()
-    render()
-
-    startTimer();
-});
-
-// Event listener to show controls
-document.getElementById('controlsButton').addEventListener('click', function () {
-    const controlsDiv = document.getElementById('controls');
-    if (controlsDiv) {
-        controlsDiv.style.display = 'flex';
-    }
-});
-
-// Optionally, add a back button to return to the menu from controls
-document.getElementById('backToMenuButton')?.addEventListener('click', function () {
-    const controlsDiv = document.getElementById('controls');
-    if (controlsDiv) {
-        controlsDiv.style.display = 'none';
-    }
-});
-
-document.getElementById('menuButton').addEventListener('click', function () {
-    const menu = document.getElementById('menu');
-    const menuButton = document.getElementById('menuButton');
-    const timerDiv = document.getElementById('timer');
-    if (timerDiv) {
-        timerDiv.style.backgroundColor = '#000000';
-        timerDiv.style.color = '#ffffff';
-    }
-
-    if (menu.style.display === 'none' || menu.style.display === '') {
-        menu.style.display = 'flex'; // Show the menu
-        menuButton.style.display = 'none'; // Hide the "Menu" button
-    }
-});
-
-function startTimer() {
-    elapsedTime = 0; // Reset the timer
-    const timerElement = document.getElementById('timer');
-
-    // Update the timer every second
-    timerInterval = setInterval(() => {
-        elapsedTime++;
-        const minutes = Math.floor(elapsedTime / 60);
-        const seconds = elapsedTime % 60;
-
-        // Format time as MM:SS
-        timerElement.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-    }, 1000);
-}
-
-function stopTimer() {
-    clearInterval(timerInterval);
-}
-
-function showEndScreen() {
-    const endScreen = document.getElementById('endScreen');
-    const endText = document.getElementById('endText');
-    // const winMessage = document.getElementById('winMessage');
-    const timerElement = document.getElementById('timer');
-    const timeElement = document.getElementById('time');
-
-    // Retrieve the time from the timer and update the win message
-    if (timerElement) {
-        timeElement.textContent = `Your time: ${timerElement.textContent}`;
-    }
-
-    // Hide other UI elements
-    document.getElementById('timer').style.display = 'none';
-    document.getElementById('menuButton').style.display = 'none';
-
-    // Show the end screen
-    endScreen.style.display = 'flex';
-    endText.style.display = 'flex';
-
-    // Trigger firework
-    if (!fireworkIsOn) {
-        triggerFireworks();
-    }
-
-    fireworkIsOn = true;
-
-    // Stop the timer
-    stopTimer();
-}
-
-function createFirework(position) {
+function createFirework() {
     const particleCount = 50;
     const particlesGeometry = new THREE.BufferGeometry();
     const positions = [];
@@ -945,12 +503,407 @@ function createFirework(position) {
     animateFirework();
 }
 
+function _createCollisionShape(shapeComponent) {
+    const data = shapeComponent.data;
+    const vertices = [];
+    const matrices = [];
+    const indexes = [];
+    const root = shapeComponent.el.object3D;
+    const matrixWorld = root.matrixWorld;
+
+    threeToAmmo.iterateGeometries(root, data, (vertexArray, matrixArray, indexArray) => {
+        vertices.push(vertexArray);
+        matrices.push(matrixArray);
+        indexes.push(indexArray);
+    });
+    // console.log("data: ", data);
+    return threeToAmmo.createCollisionShapes(vertices, matrices, indexes, matrixWorld.elements, data);
+}
+
+function handleKeyDown(event) {
+    let keyCode = event.keyCode;
+
+    switch(keyCode) {
+        case 87: // W: TILT UP (Rotate around X-axis positively)
+            rotateDirection.x = 1;
+            break;
+        case 83: // S: TILT DOWN (Rotate around X-axis negatively)
+            rotateDirection.x = -1;
+            break;
+        case 65: // A: ROLL LEFT (Rotate around Z-axis positively)
+            rotateDirection.z = -1;
+            break;
+        case 68: // D: ROLL RIGHT (Rotate around Z-axis negatively)
+            rotateDirection.z = 1;
+            break;
+    }
+}
+
+function handleKeyUp(event){
+    let keyCode = event.keyCode;
+
+    switch(keyCode) {
+        case 87: // W: TILT UP (Rotate around X-axis positively)
+            rotateDirection.x = 0;
+            break;
+        case 83: // S: TILT DOWN (Rotate around X-axis negatively)
+            rotateDirection.x = 0;
+            break;
+        case 65: // A: ROTATE LEFT (Rotate around Y-axis positively)
+            rotateDirection.z = 0;
+            break;
+        case 68: // D: ROTATE RIGHT (Rotate around Y-axis negatively)
+            rotateDirection.z = 0;
+            break;
+    }
+}
+
+function rotateKinematic() {
+    let rotationFactor = 0.01;
+
+    // Compute rotation values
+    let rotateX = rotateDirection.x * rotationFactor;
+    let rotateY = rotateDirection.y * rotationFactor;
+    let rotateZ = rotateDirection.z * rotationFactor;
+
+    // Get current rotation as Euler angles for checking limits
+    let currentRotation = new THREE.Euler().setFromQuaternion(maze.quaternion);
+
+    const cameraDirection = new THREE.Vector3();
+    camera.getWorldDirection(cameraDirection);
+
+    // Get the camera's right and up directions
+    const cameraUp = new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion);
+    const cameraRight = new THREE.Vector3().crossVectors(cameraUp, cameraDirection).normalize();
+
+    // Create quaternions for constrained rotations
+    const rotQuaternionX = new THREE.Quaternion().setFromAxisAngle(cameraRight, rotateX); // Tilt (X-axis)
+    const rotQuaternionZ = new THREE.Quaternion().setFromAxisAngle(cameraDirection, rotateZ); // Roll (Z-axis)
+
+    let rotQuaternionY = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), rotateY);
+
+    // Combine the rotations
+    let combinedRotation = new THREE.Quaternion().multiplyQuaternions(
+        rotQuaternionZ,
+        new THREE.Quaternion().multiplyQuaternions(rotQuaternionY, rotQuaternionX)
+    );
+
+    if (Math.abs(currentRotation.x + combinedRotation.x) >= 0.5 ||
+        Math.abs(currentRotation.z + combinedRotation.z) >= 0.5)
+    {
+     if(combinedRotation.x !== 0 || combinedRotation.z !== 0){
+         unstuckCounter++;
+     }
+     if (unstuckCounter > 200){
+         if (currentRotation.x + combinedRotation.x < -0.5) {
+             combinedRotation.x = 0.01;
+         } else if (currentRotation.x + combinedRotation.x > 0.5) {
+             combinedRotation.x = -0.01;
+         }
+
+         // Adjust `combinedRotation.z`
+         if (currentRotation.z + combinedRotation.z < -0.5) {
+             combinedRotation.z = 0.01;
+         } else if (currentRotation.z + combinedRotation.z > 0.5) {
+             combinedRotation.z = -0.01;
+         }
+         // console.log("Unstucking maze")
+         unstuckCounter = 0
+     }else {
+         return
+     }
+    }
+    // console.log(`rotation: ${combinedRotation.x}, ${combinedRotation.y}, ${combinedRotation.z}`)
+
+    maze.quaternion.multiply(combinedRotation);
+    ground.quaternion.copy(maze.quaternion);
+    glass.quaternion.copy(maze.quaternion);
+    finishLine.quaternion.copy(maze.quaternion);
+
+    glass.position.y = -0.13;
+
+    // Sync finish line rotation but preserve its position relative to the maze
+    let finishLineOffset = new THREE.Vector3(0, -0.55, 4); // TEST FINISH
+    // let finishLineOffset = new THREE.Vector3(0.7, -0.55, -10.5); // REAL FINISH
+    finishLineOffset.applyQuaternion(maze.quaternion); // Rotate the offset
+    finishLine.position.copy(maze.position).add(finishLineOffset);
+    finishLine.quaternion.copy(maze.quaternion);
+
+    // Sync with Ammo.js
+    maze.getWorldPosition(tmpPos);
+    maze.getWorldQuaternion(tmpQuat);
+
+    let physicsBodyGr = ground.userData.physicsBody;
+    let physicsBodyM = maze.userData.physicsBody;
+    let physicsBodyGlass = glass.userData.physicsBody;
+    let physicsFinishLine = finishLine.userData.physicsBody;
+
+    let msGr = physicsBodyGr.getMotionState();
+    let msM = physicsBodyM.getMotionState();
+    let msGlass = physicsBodyGlass.getMotionState();
+    let msFinishLine = physicsFinishLine.getMotionState();
+    if (msM && msGr && msGlass && msFinishLine) {
+        ammoTmpPos.setValue(tmpPos.x, tmpPos.y, tmpPos.z);
+        ammoTmpQuat.setValue(tmpQuat.x, tmpQuat.y, tmpQuat.z, tmpQuat.w);
+
+        tmpTrans.setIdentity();
+        tmpTrans.setOrigin(ammoTmpPos);
+        tmpTrans.setRotation(ammoTmpQuat);
+
+        msM.setWorldTransform(tmpTrans);
+        msGr.setWorldTransform(tmpTrans);
+        msGlass.setWorldTransform(tmpTrans);
+        msFinishLine.setWorldTransform(tmpTrans);
+
+        // Additional position correction for glass
+        let glassOrigin = tmpTrans.getOrigin();
+        glassOrigin.setY(glassOrigin.y() - 0.13);
+        tmpTrans.setOrigin(glassOrigin);
+        msGlass.setWorldTransform(tmpTrans);
+
+        // Update finish line transform with specific offset
+        let finishLineTransform = new Ammo.btTransform();
+        finishLineTransform.setIdentity();
+        finishLineTransform.setOrigin(new Ammo.btVector3(
+            finishLine.position.x,
+            finishLine.position.y,
+            finishLine.position.z
+        ));
+        finishLineTransform.setRotation(new Ammo.btQuaternion(
+            tmpQuat.x,
+            tmpQuat.y,
+            tmpQuat.z,
+            tmpQuat.w
+        ));
+        msFinishLine.setWorldTransform(finishLineTransform);
+    }
+}
+
+function updatePhysics(deltaTime) {
+    dynamicsWorld.stepSimulation(deltaTime, 10);
+    // Update rigid bodies
+    for (let i = 0; i < rigidBodies.length; i++) {
+        let objThree = rigidBodies[i];
+        let objAmmo = objThree.userData.physicsBody;
+        let ms = objAmmo.getMotionState();
+        if (ms) {
+
+            ms.getWorldTransform(tmpTrans);
+            let p = tmpTrans.getOrigin();
+            let q = tmpTrans.getRotation();
+            objThree.position.set(p.x(), p.y(), p.z());
+            objThree.quaternion.set(q.x(), q.y(), q.z(), q.w());
+        }
+    }
+
+    // Detect collision between ball and finish line
+    let numManifolds = dynamicsWorld.getDispatcher().getNumManifolds();
+    for (let i = 0; i < numManifolds; i++) {
+        let manifold = dynamicsWorld.getDispatcher().getManifoldByIndexInternal(i);
+        let body0 = Ammo.castObject(manifold.getBody0(), Ammo.btRigidBody);
+        let body1 = Ammo.castObject(manifold.getBody1(), Ammo.btRigidBody);
+
+        // Check if one of the bodies is the ball and the other the finish line
+        if (
+            (body0 === finishLine.userData.physicsBody && body1 === ball.userData.physicsBody) ||
+            (body1 === finishLine.userData.physicsBody && body0 === ball.userData.physicsBody)
+        ) {
+            // Get the closest contact point
+            let numContacts = manifold.getNumContacts();
+            for (let j = 0; j < numContacts; j++) {
+                let pt = manifold.getContactPoint(j);
+
+                // Check if the distance is within a small threshold
+                if (pt.getDistance() <= 0.1) {
+                    // console.log("Ball touched the finish line!");
+                    showEndScreen();
+                    return;
+                }
+            }
+        }
+    }
+}
+
+function update() {
+    var delta = clock.getDelta()
+    if (maze && ground)
+        rotateKinematic()
+
+    // Update physics world
+    updatePhysics(delta);
+
+    updateCameraZoomLimits();
+    controls.update()
+}
+
+function clearScene() {
+    if (scene != null) {
+        scene.traverse((object) => {
+            if (object.isMesh) {
+                // Dispose of geometry
+                object.geometry.dispose();
+                if (object.material.isMaterial) {
+                    cleanMaterial(object.material);
+                }
+            }
+        });
+    }
+
+    // Remove all children from the scene
+    while (scene !=null && scene.children != null && scene.children.length > 0) {
+        scene.remove(scene.children[0]);
+    }
+
+    // Clear rigidBodies array
+    rigidBodies = [];
+}
+
+function resetVariables() {
+    maze = null;
+    ground = null;
+
+    if (dynamicsWorld != null) {
+        // Remove all rigid bodies from the physics world
+        for (let i = 0; i < rigidBodies.length; i++) {
+            let body = rigidBodies[i].userData.physicsBody;
+            if (body) {
+                dynamicsWorld.removeRigidBody(body);
+            }
+        }
+
+        // Clear the rigidBodies array
+        rigidBodies = [];
+    }
+}
+
+function updateCameraZoomLimits() {
+    let maxZoomOut = 30;
+    let minZoomIn = 2;
+    // Scene's center point
+    let center = new THREE.Vector3(0, 0, 0);
+
+    // Distance from camera to center
+    let distance = camera.position.distanceTo(center);
+
+    // Clamp the camera distance
+    if (distance > maxZoomOut) {
+        camera.position.setLength(maxZoomOut);
+    } else if (distance < minZoomIn) {
+        camera.position.setLength(minZoomIn);
+    }
+}
+
+function startTimer() {
+    elapsedTime = 0;
+    const timerElement = document.getElementById('timer');
+
+    // Update the timer every second
+    timerInterval = setInterval(() => {
+        elapsedTime++;
+        const minutes = Math.floor(elapsedTime / 60);
+        const seconds = elapsedTime % 60;
+
+        // Format time as MM:SS
+        timerElement.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    }, 1000);
+}
+
+function stopTimer() {
+    clearInterval(timerInterval);
+}
+
+function showEndScreen() {
+    const endScreen = document.getElementById('endScreen');
+    const endText = document.getElementById('endText');
+    const timerElement = document.getElementById('timer');
+    const timeElement = document.getElementById('time');
+
+    // Retrieve the time from the timer and update the win message
+    if (timerElement) {
+        timeElement.textContent = `Your time: ${timerElement.textContent}`;
+    }
+
+    // Hide other UI elements
+    document.getElementById('timer').style.display = 'none';
+    document.getElementById('menuButton').style.display = 'none';
+
+    // Show the end screen
+    endScreen.style.display = 'flex';
+    endText.style.display = 'flex';
+
+    // Trigger firework
+    if (!fireworkIsOn) {
+        triggerFireworks();
+    }
+
+    fireworkIsOn = true;
+
+    // Stop the timer
+    stopTimer();
+}
+
 async function triggerFireworks() {
     while (true) {
-        const x = (Math.random() - 0.5) * 10; // Random X position
-        const y = Math.random() * 3 + 1; // Random Y position
-        const z = (Math.random() - 0.5) * 10; // Random Z position
-        createFirework(new THREE.Vector3(x, y, z));
+        createFirework();
         await new Promise(r => setTimeout(r, 30));
     }
 }
+
+function setupEventHandlers(){
+    window.addEventListener( 'keydown', handleKeyDown, false);
+    window.addEventListener( 'keyup', handleKeyUp, false);
+}
+
+// Event listener to hide the menu and start the game
+document.getElementById('startButton').addEventListener('click', function () {
+    document.getElementById('menu').style.display = 'none';
+    document.getElementById('menuButton').style.display = 'block';
+    const timerDiv = document.getElementById('timer');
+    if (timerDiv) {
+        timerDiv.style.display = 'flex';
+        timerDiv.style.backgroundColor = '#ffffff';
+        timerDiv.style.color = '#000000';
+    }
+
+    clearScene();
+    resetVariables();
+
+    init()
+    // initDebug()
+    addObjects()
+    setupEventHandlers()
+    render()
+
+    startTimer();
+});
+
+// Event listener to show controls
+document.getElementById('controlsButton').addEventListener('click', function () {
+    const controlsDiv = document.getElementById('controls');
+    if (controlsDiv) {
+        controlsDiv.style.display = 'flex';
+    }
+});
+
+// Back button to return to the menu from controls
+document.getElementById('backToMenuButton')?.addEventListener('click', function () {
+    const controlsDiv = document.getElementById('controls');
+    if (controlsDiv) {
+        controlsDiv.style.display = 'none';
+    }
+});
+
+document.getElementById('menuButton').addEventListener('click', function () {
+    const menu = document.getElementById('menu');
+    const menuButton = document.getElementById('menuButton');
+    const timerDiv = document.getElementById('timer');
+    if (timerDiv) {
+        timerDiv.style.backgroundColor = '#000000';
+        timerDiv.style.color = '#ffffff';
+    }
+
+    if (menu.style.display === 'none' || menu.style.display === '') {
+        menu.style.display = 'flex';
+        menuButton.style.display = 'none';
+    }
+});
