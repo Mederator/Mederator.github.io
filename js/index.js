@@ -10,7 +10,7 @@ const FLAGS = { CF_KINEMATIC_OBJECT: 2 }
 const STATE = { DISABLE_DEACTIVATION : 4 }
 
 let sizes, canvas, camera, scene, light1, light2, renderer, controls, loader,
-    maze, ground, glass, ball, finishLine, fireworkScene, tmpTrans,
+    maze, ground, glass, ball, finishLine, fovReducer, gravityChanger, fireworkScene, tmpTrans,
     dynamicsWorld, timerInterval;
 
 const clock = new THREE.Clock();
@@ -21,6 +21,8 @@ let rigidBodies = [];
 let ammoTmpPos = null;
 let ammoTmpQuat = null;
 let fireworkIsOn = false;
+let lightReduced = false;
+let gravityChanged = false;
 let elapsedTime = 0;
 let unstuckCounter = 0;
 
@@ -74,10 +76,12 @@ function init() {
     scene = new THREE.Scene();
 
     // Light
-    light1 = new THREE.DirectionalLight(0xffffff, 0.75);
+    light1 = new THREE.SpotLight(0xffffff, 0.75)
+    light1.angle = Math.PI / 2; // Very wide angle (90 degrees)
     light1.position.set(1, 10, 3);
     scene.add(light1);
-    light2 = new THREE.DirectionalLight(0xffffff, 0.75);
+    light2 = new THREE.SpotLight(0xffffff, 0.75)
+    light2.angle = Math.PI / 2; // Very wide angle (90 degrees)
     light2.position.set(1, 10, -3);
     scene.add(light2);
 
@@ -131,6 +135,8 @@ function addObjects() {
     createMaze();
 
     createFinishLine({ width: 1, height: 0.6, depth: 0.5 });
+    createFovReducer({ width: 0.6, height: 0.6, depth: 0.6 });
+    createGravityChanger({ width: 0.6, height: 0.6, depth: 0.6 });
 }
 
 function createStars() {
@@ -310,7 +316,7 @@ function createBall() {
 
         ball.userData.physicsBody = body;
         rigidBodies.push(ball);
-    }, 500);
+    }, 800);
 }
 
 function createGlass() {
@@ -331,7 +337,6 @@ function createGlass() {
         clearcoatRoughness: 0,
         metalness: 0,
         reflectivity: 0,
-        opacity: 1,
         side: THREE.DoubleSide,
     });
 
@@ -430,6 +435,122 @@ function createFinishLine(size) {
     rigidBodies.push(finishLine);
 
     return finishLine;
+}
+
+function createFovReducer(size) {
+    // Default parameters for size and position
+    const defaultPosition = { x: 0, y: 0.1, z: 10 };
+    const defaultSize = { width: 2, height: 0.2, depth: 0.1 };
+
+    // Use provided position and size, or defaults
+    size = size || defaultSize;
+
+    // Create geometry and material for the finish line
+    const geometry = new THREE.BoxGeometry(size.width, size.height, size.depth);
+    const texture = new THREE.ImageUtils.loadTexture('../texture/fovReducerBox.jpg');
+    const material = new THREE.MeshStandardMaterial({
+        // color: 0x0000ff, // Blue color
+        map: texture,
+        metalness: 0.3,
+        roughness: 0.5,
+        side: THREE.DoubleSide,
+    });
+
+    // Create the mesh
+    fovReducer = new THREE.Mesh(geometry, material);
+
+    // Position the finish line
+    fovReducer.position.set(defaultPosition.x, defaultPosition.y, defaultPosition.z);
+    scene.add(fovReducer);
+
+    // Ammo.js collision shape
+    const mass = 0;
+    let transform = new Ammo.btTransform();
+    transform.setIdentity();
+    transform.setOrigin(new Ammo.btVector3(defaultPosition.x, defaultPosition.y, defaultPosition.z));
+    transform.setRotation(new Ammo.btQuaternion(0, 0, 0, 1));
+
+    let motionState = new Ammo.btDefaultMotionState(transform);
+
+    // Create the collision shape for the finish line
+    const colShape = new Ammo.btBoxShape(
+        new Ammo.btVector3(size.width / 2, size.height / 2, size.depth / 2)
+    );
+    colShape.setMargin(0.01);
+
+    let localInertia = new Ammo.btVector3(0, 0, 0);
+    colShape.calculateLocalInertia(mass, localInertia);
+
+    let rbInfo = new Ammo.btRigidBodyConstructionInfo(mass, motionState, colShape, localInertia);
+    let body = new Ammo.btRigidBody(rbInfo);
+
+    // Ensure the body stays active
+    body.setActivationState(STATE.DISABLE_DEACTIVATION);
+    body.setCollisionFlags(FLAGS.CF_KINEMATIC_OBJECT | FLAGS.CF_NO_CONTACT_RESPONSE);
+    dynamicsWorld.addRigidBody(body);
+
+    fovReducer.userData.physicsBody = body;
+    rigidBodies.push(fovReducer);
+
+    return fovReducer;
+}
+
+function createGravityChanger(size) {
+    // Default parameters for size and position
+    const defaultPosition = { x: 0, y: 0.1, z: 10 };
+    const defaultSize = { width: 2, height: 0.2, depth: 0.1 };
+
+    // Use provided position and size, or defaults
+    size = size || defaultSize;
+
+    // Create geometry and material for the finish line
+    const geometry = new THREE.BoxGeometry(size.width, size.height, size.depth);
+    const texture = new THREE.ImageUtils.loadTexture('../texture/gravityChangerBox.jpg');
+    const material = new THREE.MeshStandardMaterial({
+        // color: 0x0000ff, // Blue color
+        map: texture,
+        metalness: 0.3,
+        roughness: 0.5,
+        side: THREE.DoubleSide,
+    });
+
+    // Create the mesh
+    gravityChanger = new THREE.Mesh(geometry, material);
+
+    // Position the finish line
+    gravityChanger.position.set(defaultPosition.x, defaultPosition.y, defaultPosition.z);
+    scene.add(gravityChanger);
+
+    // Ammo.js collision shape
+    const mass = 0;
+    let transform = new Ammo.btTransform();
+    transform.setIdentity();
+    transform.setOrigin(new Ammo.btVector3(defaultPosition.x, defaultPosition.y, defaultPosition.z));
+    transform.setRotation(new Ammo.btQuaternion(0, 0, 0, 1));
+
+    let motionState = new Ammo.btDefaultMotionState(transform);
+
+    // Create the collision shape for the finish line
+    const colShape = new Ammo.btBoxShape(
+        new Ammo.btVector3(size.width / 2, size.height / 2, size.depth / 2)
+    );
+    colShape.setMargin(0.01);
+
+    let localInertia = new Ammo.btVector3(0, 0, 0);
+    colShape.calculateLocalInertia(mass, localInertia);
+
+    let rbInfo = new Ammo.btRigidBodyConstructionInfo(mass, motionState, colShape, localInertia);
+    let body = new Ammo.btRigidBody(rbInfo);
+
+    // Ensure the body stays active
+    body.setActivationState(STATE.DISABLE_DEACTIVATION);
+    body.setCollisionFlags(FLAGS.CF_KINEMATIC_OBJECT | FLAGS.CF_NO_CONTACT_RESPONSE);
+    dynamicsWorld.addRigidBody(body);
+
+    gravityChanger.userData.physicsBody = body;
+    rigidBodies.push(gravityChanger);
+
+    return gravityChanger;
 }
 
 function createFirework() {
@@ -619,15 +740,26 @@ function rotateKinematic() {
     ground.quaternion.copy(maze.quaternion);
     glass.quaternion.copy(maze.quaternion);
     finishLine.quaternion.copy(maze.quaternion);
+    // fovReducer.quaternion.copy(maze.quaternion);
 
     glass.position.y = -0.13;
 
     // Sync finish line rotation but preserve its position relative to the maze
-    let finishLineOffset = new THREE.Vector3(0, -0.55, 4); // TEST FINISH
+    let finishLineOffset = new THREE.Vector3(0, -0.55, 6); // TEST FINISH
     // let finishLineOffset = new THREE.Vector3(0.7, -0.55, -10.5); // REAL FINISH
     finishLineOffset.applyQuaternion(maze.quaternion); // Rotate the offset
     finishLine.position.copy(maze.position).add(finishLineOffset);
     finishLine.quaternion.copy(maze.quaternion);
+
+    let fovReducerOffset = new THREE.Vector3(2, -0.55, 3);
+    fovReducerOffset.applyQuaternion(maze.quaternion); // Rotate the offset
+    fovReducer.position.copy(maze.position).add(fovReducerOffset);
+    fovReducer.quaternion.copy(maze.quaternion);
+
+    let gravityChangerOffset = new THREE.Vector3(0, -0.55, 1); // TEST FINISH
+    gravityChangerOffset.applyQuaternion(maze.quaternion); // Rotate the offset
+    gravityChanger.position.copy(maze.position).add(gravityChangerOffset);
+    gravityChanger.quaternion.copy(maze.quaternion);
 
     // Sync with Ammo.js
     maze.getWorldPosition(tmpPos);
@@ -637,12 +769,16 @@ function rotateKinematic() {
     let physicsBodyM = maze.userData.physicsBody;
     let physicsBodyGlass = glass.userData.physicsBody;
     let physicsFinishLine = finishLine.userData.physicsBody;
+    let physicsFovReducer = fovReducer.userData.physicsBody;
+    let physicsGravityChanger = gravityChanger.userData.physicsBody;
 
     let msGr = physicsBodyGr.getMotionState();
     let msM = physicsBodyM.getMotionState();
     let msGlass = physicsBodyGlass.getMotionState();
     let msFinishLine = physicsFinishLine.getMotionState();
-    if (msM && msGr && msGlass && msFinishLine) {
+    let msFovReducer = physicsFovReducer.getMotionState();
+    let msGravityChanger = physicsGravityChanger.getMotionState();
+    if (msM && msGr && msGlass && msFinishLine && msFovReducer) {
         ammoTmpPos.setValue(tmpPos.x, tmpPos.y, tmpPos.z);
         ammoTmpQuat.setValue(tmpQuat.x, tmpQuat.y, tmpQuat.z, tmpQuat.w);
 
@@ -654,6 +790,8 @@ function rotateKinematic() {
         msGr.setWorldTransform(tmpTrans);
         msGlass.setWorldTransform(tmpTrans);
         msFinishLine.setWorldTransform(tmpTrans);
+        msFovReducer.setWorldTransform(tmpTrans);
+        msGravityChanger.setWorldTransform(tmpTrans);
 
         // Additional position correction for glass
         let glassOrigin = tmpTrans.getOrigin();
@@ -676,6 +814,36 @@ function rotateKinematic() {
             tmpQuat.w
         ));
         msFinishLine.setWorldTransform(finishLineTransform);
+
+        let fovReducerTransform = new Ammo.btTransform();
+        fovReducerTransform.setIdentity();
+        fovReducerTransform.setOrigin(new Ammo.btVector3(
+            fovReducer.position.x,
+            fovReducer.position.y,
+            fovReducer.position.z
+        ));
+        fovReducerTransform.setRotation(new Ammo.btQuaternion(
+            tmpQuat.x,
+            tmpQuat.y,
+            tmpQuat.z,
+            tmpQuat.w
+        ));
+        msFovReducer.setWorldTransform(fovReducerTransform);
+
+        let gravityChangerTransform = new Ammo.btTransform();
+        gravityChangerTransform.setIdentity();
+        gravityChangerTransform.setOrigin(new Ammo.btVector3(
+            gravityChanger.position.x,
+            gravityChanger.position.y,
+            gravityChanger.position.z
+        ));
+        gravityChangerTransform.setRotation(new Ammo.btQuaternion(
+            tmpQuat.x,
+            tmpQuat.y,
+            tmpQuat.z,
+            tmpQuat.w
+        ));
+        msGravityChanger.setWorldTransform(gravityChangerTransform);
     }
 }
 
@@ -721,6 +889,77 @@ function updatePhysics(deltaTime) {
                 }
             }
         }
+
+        // Check if one of the bodies is the ball and the other the FOV Reducer
+        if (
+            (body0 === fovReducer.userData.physicsBody && body1 === ball.userData.physicsBody) ||
+            (body1 === fovReducer.userData.physicsBody && body0 === ball.userData.physicsBody)
+        ) {
+            let numContacts = manifold.getNumContacts();
+            for (let j = 0; j < numContacts; j++) {
+                let pt = manifold.getContactPoint(j);
+                if (pt.getDistance() <= 0.1) {
+
+                    var originalLight1Angle, originalLight1Penumbra, originalLight1Intensity,
+                        originalLight1Target, originalLight2Intensity;
+                    if (!lightReduced)
+                    {
+                        originalLight1Angle = light1.angle;
+                        originalLight1Penumbra = light1.penumbra;
+                        originalLight1Intensity = light1.intensity;
+                        originalLight1Target = light1.target;
+                        originalLight2Intensity = light2.intensity;
+                    }
+                    lightReduced = true;
+
+                    light1.angle = Math.PI / 12;
+                    light1.target = ball;
+                    light1.penumbra = 0.8;
+                    light1.intensity = 0.9;
+                    light2.intensity = 0.0;
+
+                    setTimeout(() => {
+                        if (lightReduced)
+                        {
+                            light1.angle = originalLight1Angle;
+                            light1.penumbra = originalLight1Penumbra;
+                            light1.intensity = originalLight1Intensity;
+                            light1.target = originalLight1Target;
+                            light2.intensity = originalLight2Intensity;
+                        }
+                        lightReduced = false;
+                    }, 10000);
+                }
+            }
+        }
+
+        if (
+            (body0 === gravityChanger.userData.physicsBody && body1 === ball.userData.physicsBody) ||
+            (body1 === gravityChanger.userData.physicsBody && body0 === ball.userData.physicsBody)
+        ) {
+            let numContacts = manifold.getNumContacts();
+            for (let j = 0; j < numContacts; j++) {
+                let pt = manifold.getContactPoint(j);
+                if (pt.getDistance() <= 0.1) {
+
+                    var originalGravity;
+                    if (!gravityChanged)
+                    {
+                        originalGravity = dynamicsWorld.getGravity();
+                        dynamicsWorld.setGravity(new Ammo.btVector3(0, 10, 0));
+                    }
+                    gravityChanged = true;
+
+                    setTimeout(() => {
+                        if (gravityChanged)
+                        {
+                            dynamicsWorld.setGravity(originalGravity);
+                        }
+                        gravityChanged = false;
+                    }, 10000);
+                }
+            }
+        }
     }
 }
 
@@ -731,6 +970,8 @@ function update() {
 
     // Update physics world
     updatePhysics(delta);
+
+    // fovReducer.rotation.y += 0.02
 
     updateCameraZoomLimits();
     controls.update()
