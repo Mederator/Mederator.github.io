@@ -44,6 +44,28 @@
     margin: 10px 0;
 }
 
+#endText button {
+    width: 250px;
+    height: 50px;
+    background: #000000;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    color: white;
+    font-family: Arial, sans-serif;
+    font-size: 1.2em;
+    transition: transform 0.2s ease;
+    margin: 5px;
+}
+
+#endText button:hover {
+    transform: scale(1.025);
+}
+
+#endText button:active {
+    transform: scale(0.975);
+}
+
 #fireworkCanvas {
     position: absolute;
     top: 0;

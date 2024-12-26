@@ -18,6 +18,9 @@ let tmpPos = new THREE.Vector3(), tmpQuat = new THREE.Quaternion();
 let rotateDirection = { x: 0, y: 0, z: 0 };
 let rigidBodies = [];
 
+let keyDownListener = null;
+let keyUpListener = null;
+let animationFrameId = null;
 let ammoTmpPos = null;
 let ammoTmpQuat = null;
 let fireworkIsOn = false;
@@ -119,6 +122,10 @@ function init() {
 }
 
 function render() {
+    if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+    }
+
     update();
 
     if (debugDrawer) {
@@ -126,7 +133,7 @@ function render() {
     }
 
     renderer.render(scene, camera);
-    requestAnimationFrame(render);
+    animationFrameId = requestAnimationFrame(render);
 }
 
 function addObjects() {
@@ -745,13 +752,13 @@ function rotateKinematic() {
     glass.position.y = -0.13;
 
     // Sync finish line rotation but preserve its position relative to the maze
-    let finishLineOffset = new THREE.Vector3(0, -0.55, 6); // TEST FINISH
+    let finishLineOffset = new THREE.Vector3(0, -0.55, 5); // TEST FINISH
     // let finishLineOffset = new THREE.Vector3(0.7, -0.55, -10.5); // REAL FINISH
     finishLineOffset.applyQuaternion(maze.quaternion); // Rotate the offset
     finishLine.position.copy(maze.position).add(finishLineOffset);
     finishLine.quaternion.copy(maze.quaternion);
 
-    let fovReducerOffset = new THREE.Vector3(2, -0.55, 3);
+    let fovReducerOffset = new THREE.Vector3(-2, -0.55, 3);
     fovReducerOffset.applyQuaternion(maze.quaternion); // Rotate the offset
     fovReducer.position.copy(maze.position).add(fovReducerOffset);
     fovReducer.quaternion.copy(maze.quaternion);
@@ -871,92 +878,90 @@ function updatePhysics(deltaTime) {
         let body0 = Ammo.castObject(manifold.getBody0(), Ammo.btRigidBody);
         let body1 = Ammo.castObject(manifold.getBody1(), Ammo.btRigidBody);
 
-        // Check if one of the bodies is the ball and the other the finish line
-        if (
-            (body0 === finishLine.userData.physicsBody && body1 === ball.userData.physicsBody) ||
-            (body1 === finishLine.userData.physicsBody && body0 === ball.userData.physicsBody)
-        ) {
-            // Get the closest contact point
-            let numContacts = manifold.getNumContacts();
-            for (let j = 0; j < numContacts; j++) {
-                let pt = manifold.getContactPoint(j);
+        if (finishLine && ball) {
+            // Check if one of the bodies is the ball and the other the finish line
+            if (
+                (body0 === finishLine.userData.physicsBody && body1 === ball.userData.physicsBody) ||
+                (body1 === finishLine.userData.physicsBody && body0 === ball.userData.physicsBody)
+            ) {
+                // Get the closest contact point
+                let numContacts = manifold.getNumContacts();
+                for (let j = 0; j < numContacts; j++) {
+                    let pt = manifold.getContactPoint(j);
 
-                // Check if the distance is within a small threshold
-                if (pt.getDistance() <= 0.1) {
-                    // console.log("Ball touched the finish line!");
-                    showEndScreen();
-                    return;
+                    // Check if the distance is within a small threshold
+                    if (pt.getDistance() <= 0.1) {
+                        // console.log("Ball touched the finish line!");
+                        showEndScreen();
+                        return;
+                    }
                 }
             }
-        }
 
-        // Check if one of the bodies is the ball and the other the FOV Reducer
-        if (
-            (body0 === fovReducer.userData.physicsBody && body1 === ball.userData.physicsBody) ||
-            (body1 === fovReducer.userData.physicsBody && body0 === ball.userData.physicsBody)
-        ) {
-            let numContacts = manifold.getNumContacts();
-            for (let j = 0; j < numContacts; j++) {
-                let pt = manifold.getContactPoint(j);
-                if (pt.getDistance() <= 0.1) {
+            // Check if one of the bodies is the ball and the other the FOV Reducer
+            if (
+                (body0 === fovReducer.userData.physicsBody && body1 === ball.userData.physicsBody) ||
+                (body1 === fovReducer.userData.physicsBody && body0 === ball.userData.physicsBody)
+            ) {
+                let numContacts = manifold.getNumContacts();
+                for (let j = 0; j < numContacts; j++) {
+                    let pt = manifold.getContactPoint(j);
+                    if (pt.getDistance() <= 0.1) {
 
-                    var originalLight1Angle, originalLight1Penumbra, originalLight1Intensity,
-                        originalLight1Target, originalLight2Intensity;
-                    if (!lightReduced)
-                    {
-                        originalLight1Angle = light1.angle;
-                        originalLight1Penumbra = light1.penumbra;
-                        originalLight1Intensity = light1.intensity;
-                        originalLight1Target = light1.target;
-                        originalLight2Intensity = light2.intensity;
-                    }
-                    lightReduced = true;
-
-                    light1.angle = Math.PI / 12;
-                    light1.target = ball;
-                    light1.penumbra = 0.8;
-                    light1.intensity = 0.9;
-                    light2.intensity = 0.0;
-
-                    setTimeout(() => {
-                        if (lightReduced)
-                        {
-                            light1.angle = originalLight1Angle;
-                            light1.penumbra = originalLight1Penumbra;
-                            light1.intensity = originalLight1Intensity;
-                            light1.target = originalLight1Target;
-                            light2.intensity = originalLight2Intensity;
+                        var originalLight1Angle, originalLight1Penumbra, originalLight1Intensity,
+                            originalLight1Target, originalLight2Intensity;
+                        if (!lightReduced) {
+                            originalLight1Angle = light1.angle;
+                            originalLight1Penumbra = light1.penumbra;
+                            originalLight1Intensity = light1.intensity;
+                            originalLight1Target = light1.target;
+                            originalLight2Intensity = light2.intensity;
                         }
-                        lightReduced = false;
-                    }, 10000);
+                        lightReduced = true;
+
+                        light1.angle = Math.PI / 12;
+                        light1.target = ball;
+                        light1.penumbra = 0.8;
+                        light1.intensity = 0.9;
+                        light2.intensity = 0.0;
+
+                        setTimeout(() => {
+                            if (lightReduced) {
+                                light1.angle = originalLight1Angle;
+                                light1.penumbra = originalLight1Penumbra;
+                                light1.intensity = originalLight1Intensity;
+                                light1.target = originalLight1Target;
+                                light2.intensity = originalLight2Intensity;
+                            }
+                            lightReduced = false;
+                        }, 10000);
+                    }
                 }
             }
-        }
 
-        if (
-            (body0 === gravityChanger.userData.physicsBody && body1 === ball.userData.physicsBody) ||
-            (body1 === gravityChanger.userData.physicsBody && body0 === ball.userData.physicsBody)
-        ) {
-            let numContacts = manifold.getNumContacts();
-            for (let j = 0; j < numContacts; j++) {
-                let pt = manifold.getContactPoint(j);
-                if (pt.getDistance() <= 0.1) {
+            if (
+                (body0 === gravityChanger.userData.physicsBody && body1 === ball.userData.physicsBody) ||
+                (body1 === gravityChanger.userData.physicsBody && body0 === ball.userData.physicsBody)
+            ) {
+                let numContacts = manifold.getNumContacts();
+                for (let j = 0; j < numContacts; j++) {
+                    let pt = manifold.getContactPoint(j);
+                    if (pt.getDistance() <= 0.1) {
 
-                    var originalGravity;
-                    if (!gravityChanged)
-                    {
-                        originalGravity = dynamicsWorld.getGravity();
-                        dynamicsWorld.setGravity(new Ammo.btVector3(0, 10, 0));
-                    }
-                    gravityChanged = true;
-
-                    setTimeout(() => {
-                        if (gravityChanged)
-                        {
-                            dynamicsWorld.setGravity(originalGravity);
+                        var originalGravity;
+                        if (!gravityChanged) {
+                            originalGravity = dynamicsWorld.getGravity();
+                            dynamicsWorld.setGravity(new Ammo.btVector3(0, 10, 0));
                         }
-                        gravityChanged = false;
-                    }, 10000);
+                        gravityChanged = true;
+
+                        setTimeout(() => {
+                            if (gravityChanged) {
+                                dynamicsWorld.setGravity(originalGravity);
+                            }
+                            gravityChanged = false;
+                        }, 10000);
+                    }
                 }
             }
         }
@@ -978,43 +983,97 @@ function update() {
 }
 
 function clearScene() {
-    if (scene != null) {
+    if (scene) {
+        // Traverse and dispose of all objects in the scene
         scene.traverse((object) => {
             if (object.isMesh) {
                 // Dispose of geometry
-                object.geometry.dispose();
-                if (object.material.isMaterial) {
-                    cleanMaterial(object.material);
+                if (object.geometry) {
+                    object.geometry.dispose();
+                }
+                // Dispose of material
+                if (object.material) {
+                    if (Array.isArray(object.material)) {
+                        object.material.forEach((mat) => {
+                            mat.dispose();
+                        });
+                    } else {
+                        object.material.dispose();
+                    }
                 }
             }
         });
+
+        // Remove all children from the scene
+        while (scene.children.length > 0) {
+            scene.remove(scene.children[0]);
+        }
+    }
+}
+
+function resetVariables() {
+    if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+        animationFrameId = null;
     }
 
-    // Remove all children from the scene
-    while (scene !=null && scene.children != null && scene.children.length > 0) {
-        scene.remove(scene.children[0]);
+    // Remove event listeners
+    if (keyDownListener) {
+        window.removeEventListener('keydown', keyDownListener);
+        keyDownListener = null;
+    }
+    if (keyUpListener) {
+        window.removeEventListener('keyup', keyUpListener);
+        keyUpListener = null;
+    }
+
+    maze = null;
+    ground = null;
+    ball = null;
+    finishLine = null;
+    fovReducer = null;
+    gravityChanger = null;
+
+    if (dynamicsWorld) {
+        // Remove all rigid bodies from the Ammo.js physics world
+        for (let i = 0; i < rigidBodies.length; i++) {
+            const body = rigidBodies[i].userData.physicsBody;
+            if (body) {
+                // Remove the rigid body from the dynamics world
+                dynamicsWorld.removeRigidBody(body);
+
+                // Clean up Ammo.js resources
+                if (body.getMotionState()) {
+                    Ammo.destroy(body.getMotionState());
+                }
+
+                // Get and destroy the collision shape
+                const collisionShape = body.getCollisionShape();
+                if (collisionShape) {
+                    Ammo.destroy(collisionShape);
+                }
+
+                // Destroy the rigid body itself
+                Ammo.destroy(body);
+            }
+        }
+
+        // Clean up the dynamics world
+        Ammo.destroy(dynamicsWorld);
+
+        // Recreate physics world
+        setupPhysics();
     }
 
     // Clear rigidBodies array
     rigidBodies = [];
-}
 
-function resetVariables() {
-    maze = null;
-    ground = null;
-
-    if (dynamicsWorld != null) {
-        // Remove all rigid bodies from the physics world
-        for (let i = 0; i < rigidBodies.length; i++) {
-            let body = rigidBodies[i].userData.physicsBody;
-            if (body) {
-                dynamicsWorld.removeRigidBody(body);
-            }
-        }
-
-        // Clear the rigidBodies array
-        rigidBodies = [];
-    }
+    // Reset other global variables
+    rotateDirection = { x: 0, y: 0, z: 0 };
+    unstuckCounter = 0;
+    fireworkIsOn = false;
+    lightReduced = false;
+    gravityChanged = false;
 }
 
 function updateCameraZoomLimits() {
@@ -1074,29 +1133,23 @@ function showEndScreen() {
 
     // Trigger firework
     if (!fireworkIsOn) {
+        fireworkIsOn = true;
+
         triggerFireworks();
     }
-
-    fireworkIsOn = true;
 
     // Stop the timer
     stopTimer();
 }
 
 async function triggerFireworks() {
-    while (true) {
+    while (fireworkIsOn) {
         createFirework();
         await new Promise(r => setTimeout(r, 30));
     }
 }
 
-function setupEventHandlers(){
-    window.addEventListener( 'keydown', handleKeyDown, false);
-    window.addEventListener( 'keyup', handleKeyUp, false);
-}
-
-// Event listener to hide the menu and start the game
-document.getElementById('startButton').addEventListener('click', function () {
+function startNewGame() {
     document.getElementById('menu').style.display = 'none';
     document.getElementById('menuButton').style.display = 'block';
     const timerDiv = document.getElementById('timer');
@@ -1105,6 +1158,9 @@ document.getElementById('startButton').addEventListener('click', function () {
         timerDiv.style.backgroundColor = '#ffffff';
         timerDiv.style.color = '#000000';
     }
+    stopTimer();
+    const timerElement = document.getElementById('timer');
+    timerElement.textContent = `${String(0).padStart(2, '0')}:${String(0).padStart(2, '0')}`;
 
     clearScene();
     resetVariables();
@@ -1116,6 +1172,49 @@ document.getElementById('startButton').addEventListener('click', function () {
     render()
 
     startTimer();
+}
+
+function setupEventHandlers(){
+    // Remove existing event listeners if they exist
+    if (keyDownListener) {
+        window.removeEventListener('keydown', keyDownListener);
+    }
+    if (keyUpListener) {
+        window.removeEventListener('keyup', keyUpListener);
+    }
+
+    // Store the new event listeners
+    keyDownListener = handleKeyDown;
+    keyUpListener = handleKeyUp;
+
+    // Add the new event listeners
+    window.addEventListener('keydown', keyDownListener, false);
+    window.addEventListener('keyup', keyUpListener, false);
+}
+
+document.getElementById('startButton').addEventListener('click', function () {
+    startNewGame();
+});
+
+// Event listener for the end screen "Start a New Game" button
+document.getElementById('endStartButton').addEventListener('click', function () {
+    const endScreen = document.getElementById('endScreen');
+    const endText = document.getElementById('endText');
+    endScreen.style.display = 'none';
+    endText.style.display = 'none';
+
+    startNewGame();
+});
+
+document.getElementById('continueButton').addEventListener('click', function () {
+    document.getElementById('menu').style.display = 'none';
+    document.getElementById('menuButton').style.display = 'block';
+    const timerDiv = document.getElementById('timer');
+    if (timerDiv) {
+        timerDiv.style.display = 'flex';
+        timerDiv.style.backgroundColor = '#ffffff';
+        timerDiv.style.color = '#000000';
+    }
 });
 
 // Event listener to show controls
@@ -1135,6 +1234,7 @@ document.getElementById('backToMenuButton')?.addEventListener('click', function 
 });
 
 document.getElementById('menuButton').addEventListener('click', function () {
+    document.getElementById('continueButton').style.display = 'block';
     const menu = document.getElementById('menu');
     const menuButton = document.getElementById('menuButton');
     const timerDiv = document.getElementById('timer');
