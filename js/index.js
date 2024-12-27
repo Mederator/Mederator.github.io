@@ -17,6 +17,8 @@ const clock = new THREE.Clock();
 let tmpPos = new THREE.Vector3(), tmpQuat = new THREE.Quaternion();
 let rotateDirection = { x: 0, y: 0, z: 0 };
 let rigidBodies = [];
+let fovReducers = [];
+let gravityChangers = [];
 
 let keyDownListener = null;
 let keyUpListener = null;
@@ -30,6 +32,8 @@ let elapsedTime = 0;
 let unstuckCounter = 0;
 
 let debugDrawer;
+
+const fireworkAudio = new Audio("../assets/firework.mp3");
 
 Ammo().then(setupPhysics)
 
@@ -142,8 +146,8 @@ function addObjects() {
     createMaze();
 
     createFinishLine({ width: 1, height: 0.6, depth: 0.5 });
-    createFovReducer({ width: 0.6, height: 0.6, depth: 0.6 });
-    createGravityChanger({ width: 0.6, height: 0.6, depth: 0.6 });
+    // createFovReducer({ width: 0.6, height: 0.6, depth: 0.6 });
+    // createGravityChanger({ width: 0.6, height: 0.6, depth: 0.6 });
 }
 
 function createStars() {
@@ -280,7 +284,8 @@ function createMaze() {
         // Create the Glass and Ball after the maze has loaded
         createGlass();
         createBall();
-    },
+        createBuffs();
+        },
     // function (xhr) {
     //     console.log((xhr.loaded/xhr.total * 100) + "% loaded");
     // },
@@ -444,42 +449,60 @@ function createFinishLine(size) {
     return finishLine;
 }
 
-function createFovReducer(size) {
-    // Default parameters for size and position
-    const defaultPosition = { x: 0, y: 0.1, z: 10 };
-    const defaultSize = { width: 2, height: 0.2, depth: 0.1 };
+// Function to create multiple indices
+function createBuffs() {
+    const size = { width: 0.6, height: 0.6, depth: 0.6 };
 
-    // Use provided position and size, or defaults
-    size = size || defaultSize;
+    // Create FOV Reducers
+    const fovPositions = [
+        { x: -2, y: -0.55, z: 3 },
+        { x: 3, y: -0.55, z: 2 },
+        { x: -1, y: -0.55, z: -4 }
+    ];
 
-    // Create geometry and material for the finish line
+    fovPositions.forEach(position => {
+        const reducer = createFovReducer(size, position);
+        fovReducers.push(reducer);
+    });
+
+    // Create Gravity Changers
+    const gravityPositions = [
+        { x: 0, y: -0.55, z: 1 },
+        { x: 2, y: -0.55, z: -3 },
+        { x: -3, y: -0.55, z: -2 }
+    ];
+
+    gravityPositions.forEach(position => {
+        const changer = createGravityChanger(size, position);
+        gravityChangers.push(changer);
+    });
+}
+
+function createFovReducer(size, position) {
     const geometry = new THREE.BoxGeometry(size.width, size.height, size.depth);
     const texture = new THREE.ImageUtils.loadTexture('../texture/fovReducerBox.jpg');
     const material = new THREE.MeshStandardMaterial({
-        // color: 0x0000ff, // Blue color
         map: texture,
         metalness: 0.3,
         roughness: 0.5,
         side: THREE.DoubleSide,
     });
 
-    // Create the mesh
-    fovReducer = new THREE.Mesh(geometry, material);
-
-    // Position the finish line
-    fovReducer.position.set(defaultPosition.x, defaultPosition.y, defaultPosition.z);
+    const fovReducer = new THREE.Mesh(geometry, material);
+    fovReducer.position.set(position.x, position.y, position.z);
     scene.add(fovReducer);
 
-    // Ammo.js collision shape
+    // Set original offset relative to the maze
+    fovReducer.userData.originalOffset = new THREE.Vector3().copy(fovReducer.position).sub(maze.position);
+
+    // Ammo.js collision shape setup
     const mass = 0;
     let transform = new Ammo.btTransform();
     transform.setIdentity();
-    transform.setOrigin(new Ammo.btVector3(defaultPosition.x, defaultPosition.y, defaultPosition.z));
+    transform.setOrigin(new Ammo.btVector3(position.x, position.y, position.z));
     transform.setRotation(new Ammo.btQuaternion(0, 0, 0, 1));
 
     let motionState = new Ammo.btDefaultMotionState(transform);
-
-    // Create the collision shape for the finish line
     const colShape = new Ammo.btBoxShape(
         new Ammo.btVector3(size.width / 2, size.height / 2, size.depth / 2)
     );
@@ -491,53 +514,43 @@ function createFovReducer(size) {
     let rbInfo = new Ammo.btRigidBodyConstructionInfo(mass, motionState, colShape, localInertia);
     let body = new Ammo.btRigidBody(rbInfo);
 
-    // Ensure the body stays active
     body.setActivationState(STATE.DISABLE_DEACTIVATION);
     body.setCollisionFlags(FLAGS.CF_KINEMATIC_OBJECT | FLAGS.CF_NO_CONTACT_RESPONSE);
     dynamicsWorld.addRigidBody(body);
 
     fovReducer.userData.physicsBody = body;
+    fovReducer.userData.active = true; // Add active state
     rigidBodies.push(fovReducer);
 
     return fovReducer;
 }
 
-function createGravityChanger(size) {
-    // Default parameters for size and position
-    const defaultPosition = { x: 0, y: 0.1, z: 10 };
-    const defaultSize = { width: 2, height: 0.2, depth: 0.1 };
-
-    // Use provided position and size, or defaults
-    size = size || defaultSize;
-
-    // Create geometry and material for the finish line
+// Similar modification for createGravityChanger
+function createGravityChanger(size, position) {
     const geometry = new THREE.BoxGeometry(size.width, size.height, size.depth);
     const texture = new THREE.ImageUtils.loadTexture('../texture/gravityChangerBox.jpg');
     const material = new THREE.MeshStandardMaterial({
-        // color: 0x0000ff, // Blue color
         map: texture,
         metalness: 0.3,
         roughness: 0.5,
         side: THREE.DoubleSide,
     });
 
-    // Create the mesh
-    gravityChanger = new THREE.Mesh(geometry, material);
-
-    // Position the finish line
-    gravityChanger.position.set(defaultPosition.x, defaultPosition.y, defaultPosition.z);
+    const gravityChanger = new THREE.Mesh(geometry, material);
+    gravityChanger.position.set(position.x, position.y, position.z);
     scene.add(gravityChanger);
 
-    // Ammo.js collision shape
+    // Set original offset relative to the maze
+    gravityChanger.userData.originalOffset = new THREE.Vector3().copy(gravityChanger.position).sub(maze.position);
+
+    // Ammo.js collision shape setup
     const mass = 0;
     let transform = new Ammo.btTransform();
     transform.setIdentity();
-    transform.setOrigin(new Ammo.btVector3(defaultPosition.x, defaultPosition.y, defaultPosition.z));
+    transform.setOrigin(new Ammo.btVector3(position.x, position.y, position.z));
     transform.setRotation(new Ammo.btQuaternion(0, 0, 0, 1));
 
     let motionState = new Ammo.btDefaultMotionState(transform);
-
-    // Create the collision shape for the finish line
     const colShape = new Ammo.btBoxShape(
         new Ammo.btVector3(size.width / 2, size.height / 2, size.depth / 2)
     );
@@ -549,12 +562,12 @@ function createGravityChanger(size) {
     let rbInfo = new Ammo.btRigidBodyConstructionInfo(mass, motionState, colShape, localInertia);
     let body = new Ammo.btRigidBody(rbInfo);
 
-    // Ensure the body stays active
     body.setActivationState(STATE.DISABLE_DEACTIVATION);
     body.setCollisionFlags(FLAGS.CF_KINEMATIC_OBJECT | FLAGS.CF_NO_CONTACT_RESPONSE);
     dynamicsWorld.addRigidBody(body);
 
     gravityChanger.userData.physicsBody = body;
+    gravityChanger.userData.active = true; // Add active state
     rigidBodies.push(gravityChanger);
 
     return gravityChanger;
@@ -758,15 +771,25 @@ function rotateKinematic() {
     finishLine.position.copy(maze.position).add(finishLineOffset);
     finishLine.quaternion.copy(maze.quaternion);
 
-    let fovReducerOffset = new THREE.Vector3(-2, -0.55, 3);
-    fovReducerOffset.applyQuaternion(maze.quaternion); // Rotate the offset
-    fovReducer.position.copy(maze.position).add(fovReducerOffset);
-    fovReducer.quaternion.copy(maze.quaternion);
+    // Rotate and position all FOV reducers
+    fovReducers.forEach((fovReducer) => {
+        if (fovReducer.userData.active) {
+            const originalOffset = fovReducer.userData.originalOffset.clone();
+            const rotatedOffset = originalOffset.clone().applyQuaternion(maze.quaternion);
+            fovReducer.position.copy(maze.position).add(rotatedOffset);
+            fovReducer.quaternion.copy(maze.quaternion);
+        }
+    });
 
-    let gravityChangerOffset = new THREE.Vector3(0, -0.55, 1); // TEST FINISH
-    gravityChangerOffset.applyQuaternion(maze.quaternion); // Rotate the offset
-    gravityChanger.position.copy(maze.position).add(gravityChangerOffset);
-    gravityChanger.quaternion.copy(maze.quaternion);
+    // Rotate and position all gravity changers
+    gravityChangers.forEach((gravityChanger) => {
+        if (gravityChanger.userData.active) {
+            const originalOffset = gravityChanger.userData.originalOffset.clone();
+            const rotatedOffset = originalOffset.clone().applyQuaternion(maze.quaternion);
+            gravityChanger.position.copy(maze.position).add(rotatedOffset);
+            gravityChanger.quaternion.copy(maze.quaternion);
+        }
+    });
 
     // Sync with Ammo.js
     maze.getWorldPosition(tmpPos);
@@ -776,16 +799,16 @@ function rotateKinematic() {
     let physicsBodyM = maze.userData.physicsBody;
     let physicsBodyGlass = glass.userData.physicsBody;
     let physicsFinishLine = finishLine.userData.physicsBody;
-    let physicsFovReducer = fovReducer.userData.physicsBody;
-    let physicsGravityChanger = gravityChanger.userData.physicsBody;
+    // let physicsFovReducer = fovReducer.userData.physicsBody;
+    // let physicsGravityChanger = gravityChanger.userData.physicsBody;
 
     let msGr = physicsBodyGr.getMotionState();
     let msM = physicsBodyM.getMotionState();
     let msGlass = physicsBodyGlass.getMotionState();
     let msFinishLine = physicsFinishLine.getMotionState();
-    let msFovReducer = physicsFovReducer.getMotionState();
-    let msGravityChanger = physicsGravityChanger.getMotionState();
-    if (msM && msGr && msGlass && msFinishLine && msFovReducer) {
+    // let msFovReducer = physicsFovReducer.getMotionState();
+    // let msGravityChanger = physicsGravityChanger.getMotionState();
+    if (msM && msGr && msGlass && msFinishLine) {
         ammoTmpPos.setValue(tmpPos.x, tmpPos.y, tmpPos.z);
         ammoTmpQuat.setValue(tmpQuat.x, tmpQuat.y, tmpQuat.z, tmpQuat.w);
 
@@ -797,8 +820,8 @@ function rotateKinematic() {
         msGr.setWorldTransform(tmpTrans);
         msGlass.setWorldTransform(tmpTrans);
         msFinishLine.setWorldTransform(tmpTrans);
-        msFovReducer.setWorldTransform(tmpTrans);
-        msGravityChanger.setWorldTransform(tmpTrans);
+        // msFovReducer.setWorldTransform(tmpTrans);
+        // msGravityChanger.setWorldTransform(tmpTrans);
 
         // Additional position correction for glass
         let glassOrigin = tmpTrans.getOrigin();
@@ -822,35 +845,27 @@ function rotateKinematic() {
         ));
         msFinishLine.setWorldTransform(finishLineTransform);
 
-        let fovReducerTransform = new Ammo.btTransform();
-        fovReducerTransform.setIdentity();
-        fovReducerTransform.setOrigin(new Ammo.btVector3(
-            fovReducer.position.x,
-            fovReducer.position.y,
-            fovReducer.position.z
-        ));
-        fovReducerTransform.setRotation(new Ammo.btQuaternion(
-            tmpQuat.x,
-            tmpQuat.y,
-            tmpQuat.z,
-            tmpQuat.w
-        ));
-        msFovReducer.setWorldTransform(fovReducerTransform);
+        fovReducers.forEach((fovReducer) => {
+            const body = fovReducer.userData.physicsBody;
+            if (body) {
+                let transform = new Ammo.btTransform();
+                transform.setIdentity();
+                transform.setOrigin(new Ammo.btVector3(fovReducer.position.x, fovReducer.position.y, fovReducer.position.z));
+                transform.setRotation(new Ammo.btQuaternion(tmpQuat.x, tmpQuat.y, tmpQuat.z, tmpQuat.w));
+                body.getMotionState().setWorldTransform(transform);
+            }
+        });
 
-        let gravityChangerTransform = new Ammo.btTransform();
-        gravityChangerTransform.setIdentity();
-        gravityChangerTransform.setOrigin(new Ammo.btVector3(
-            gravityChanger.position.x,
-            gravityChanger.position.y,
-            gravityChanger.position.z
-        ));
-        gravityChangerTransform.setRotation(new Ammo.btQuaternion(
-            tmpQuat.x,
-            tmpQuat.y,
-            tmpQuat.z,
-            tmpQuat.w
-        ));
-        msGravityChanger.setWorldTransform(gravityChangerTransform);
+        gravityChangers.forEach((gravityChanger) => {
+            const body = gravityChanger.userData.physicsBody;
+            if (body) {
+                let transform = new Ammo.btTransform();
+                transform.setIdentity();
+                transform.setOrigin(new Ammo.btVector3(gravityChanger.position.x, gravityChanger.position.y, gravityChanger.position.z));
+                transform.setRotation(new Ammo.btQuaternion(tmpQuat.x, tmpQuat.y, tmpQuat.z, tmpQuat.w));
+                body.getMotionState().setWorldTransform(transform);
+            }
+        });
     }
 }
 
@@ -899,73 +914,103 @@ function updatePhysics(deltaTime) {
             }
 
             // Check if one of the bodies is the ball and the other the FOV Reducer
-            if (
-                (body0 === fovReducer.userData.physicsBody && body1 === ball.userData.physicsBody) ||
-                (body1 === fovReducer.userData.physicsBody && body0 === ball.userData.physicsBody)
-            ) {
-                let numContacts = manifold.getNumContacts();
-                for (let j = 0; j < numContacts; j++) {
-                    let pt = manifold.getContactPoint(j);
-                    if (pt.getDistance() <= 0.1) {
+            for (let fovReducer of fovReducers) {
+                if (fovReducer.userData.active &&
+                    ((body0 === fovReducer.userData.physicsBody && body1 === ball.userData.physicsBody) ||
+                     (body1 === fovReducer.userData.physicsBody && body0 === ball.userData.physicsBody))) {
 
-                        var originalLight1Angle, originalLight1Penumbra, originalLight1Intensity,
-                            originalLight1Target, originalLight2Intensity;
-                        if (!lightReduced) {
-                            originalLight1Angle = light1.angle;
-                            originalLight1Penumbra = light1.penumbra;
-                            originalLight1Intensity = light1.intensity;
-                            originalLight1Target = light1.target;
-                            originalLight2Intensity = light2.intensity;
+                    let numContacts = manifold.getNumContacts();
+                    for (let j = 0; j < numContacts; j++) {
+                        let pt = manifold.getContactPoint(j);
+                        if (pt.getDistance() <= 0.1) {
+                            handleFovReducerCollision(fovReducer);
+                            break;
                         }
-                        lightReduced = true;
-
-                        light1.angle = Math.PI / 12;
-                        light1.target = ball;
-                        light1.penumbra = 0.8;
-                        light1.intensity = 0.9;
-                        light2.intensity = 0.0;
-
-                        setTimeout(() => {
-                            if (lightReduced) {
-                                light1.angle = originalLight1Angle;
-                                light1.penumbra = originalLight1Penumbra;
-                                light1.intensity = originalLight1Intensity;
-                                light1.target = originalLight1Target;
-                                light2.intensity = originalLight2Intensity;
-                            }
-                            lightReduced = false;
-                        }, 10000);
                     }
                 }
             }
 
-            if (
-                (body0 === gravityChanger.userData.physicsBody && body1 === ball.userData.physicsBody) ||
-                (body1 === gravityChanger.userData.physicsBody && body0 === ball.userData.physicsBody)
-            ) {
-                let numContacts = manifold.getNumContacts();
-                for (let j = 0; j < numContacts; j++) {
-                    let pt = manifold.getContactPoint(j);
-                    if (pt.getDistance() <= 0.1) {
+            for (let gravityChanger of gravityChangers) {
+                if (gravityChanger.userData.active &&
+                    ((body0 === gravityChanger.userData.physicsBody && body1 === ball.userData.physicsBody) ||
+                     (body1 === gravityChanger.userData.physicsBody && body0 === ball.userData.physicsBody))) {
 
-                        var originalGravity;
-                        if (!gravityChanged) {
-                            originalGravity = dynamicsWorld.getGravity();
-                            dynamicsWorld.setGravity(new Ammo.btVector3(0, 10, 0));
+                    let numContacts = manifold.getNumContacts();
+                    for (let j = 0; j < numContacts; j++) {
+                        let pt = manifold.getContactPoint(j);
+                        if (pt.getDistance() <= 0.1) {
+                            handleGravityChangerCollision(gravityChanger);
+                            break;
                         }
-                        gravityChanged = true;
-
-                        setTimeout(() => {
-                            if (gravityChanged) {
-                                dynamicsWorld.setGravity(originalGravity);
-                            }
-                            gravityChanged = false;
-                        }, 10000);
                     }
                 }
             }
         }
     }
+}
+
+// Helper functions to handle collisions
+function handleFovReducerCollision(fovReducer) {
+    if (!fovReducer.userData.active) return;
+    const audio = new Audio("../assets/fovReducer.mp3");
+    audio.play();
+
+    fovReducer.userData.active = false;
+    scene.remove(fovReducer);
+    dynamicsWorld.removeRigidBody(fovReducer.userData.physicsBody);
+
+    // Apply FOV reduction effect
+    const originalLight1Angle = light1.angle;
+    const originalLight1Penumbra = light1.penumbra;
+    const originalLight1Intensity = light1.intensity;
+    const originalLight1Target = light1.target;
+    const originalLight2Intensity = light2.intensity;
+
+    lightReduced = true;
+    light1.angle = Math.PI / 12;
+    light1.target = ball;
+    light1.penumbra = 0.8;
+    light1.intensity = 0.9;
+    light2.intensity = 0.0;
+
+    setTimeout(() => {
+        if (lightReduced && !fireworkIsOn) {
+            audio.play();
+            if (lightReduced) {
+                light1.angle = originalLight1Angle;
+                light1.penumbra = originalLight1Penumbra;
+                light1.intensity = originalLight1Intensity;
+                light1.target = originalLight1Target;
+                light2.intensity = originalLight2Intensity;
+            }
+            lightReduced = false;
+        }
+    }, 8000);
+}
+
+function handleGravityChangerCollision(gravityChanger) {
+    if (!gravityChanger.userData.active) return;
+    const audio = new Audio("../assets/gravityChanger.mp3");
+    audio.play();
+
+    gravityChanger.userData.active = false;
+    scene.remove(gravityChanger);
+    dynamicsWorld.removeRigidBody(gravityChanger.userData.physicsBody);
+
+    // Apply gravity change effect
+    const originalGravity = dynamicsWorld.getGravity();
+    gravityChanged = true;
+    dynamicsWorld.setGravity(new Ammo.btVector3(0, 10, 0));
+
+    setTimeout(() => {
+        if (gravityChanged && !fireworkIsOn) {
+            audio.play();
+            if (gravityChanged) {
+                dynamicsWorld.setGravity(originalGravity);
+            }
+            gravityChanged = false;
+        }
+    }, 8000);
 }
 
 function update() {
@@ -1067,6 +1112,8 @@ function resetVariables() {
 
     // Clear rigidBodies array
     rigidBodies = [];
+    fovReducers = [];
+    gravityChangers = [];
 
     // Reset other global variables
     rotateDirection = { x: 0, y: 0, z: 0 };
@@ -1144,6 +1191,9 @@ function showEndScreen() {
 
 async function triggerFireworks() {
     while (fireworkIsOn) {
+        if (!fireworkAudio.isPlaying)
+            fireworkAudio.play();
+
         createFirework();
         await new Promise(r => setTimeout(r, 30));
     }
@@ -1161,6 +1211,8 @@ function startNewGame() {
     stopTimer();
     const timerElement = document.getElementById('timer');
     timerElement.textContent = `${String(0).padStart(2, '0')}:${String(0).padStart(2, '0')}`;
+
+    fireworkAudio.pause();
 
     clearScene();
     resetVariables();
