@@ -2,38 +2,31 @@ import {OrbitControls} from 'three/examples/jsm/controls/OrbitControls';
 import {GLTFLoader} from 'three/examples/jsm/loaders/GLTFLoader';
 import * as threeToAmmo from "three-to-ammo"
 import {TYPE} from "three-to-ammo"
-
-// import {THREE} from './THREE.AmmoDebugDrawer.js'; // Import your custom class
-// import {AmmoDebugDrawer, AmmoDebugConstants, DefaultBufferSize} from "ammo-debug-drawer"
-
-const FLAGS = {CF_KINEMATIC_OBJECT: 2}
-const STATE = {DISABLE_DEACTIVATION: 4}
-
-let sizes, canvas, camera, scene, light1, renderer, controls, loader,
-    maze, ground, glass, ball, finishLine, fovReducer, gravityChanger, fireworkScene, tmpTrans,
-    dynamicsWorld, timerInterval;
+import {setupEventListeners} from "./setupUi.js";
+import {
+    createGlass,
+    createModel,
+    createOrbits,
+    createStars,
+    createBall,
+    createBuffs,
+    createArrow, createFinishLine
+} from "./objectsSetup.js";
+import {handleBuffCollision, handleFovReducerCollision, handleGravityChangerCollision} from "./buffsLogic.js";
+import {clearScene} from "./utilities.js";
 
 const clock = new THREE.Clock();
 let tmpPos = new THREE.Vector3(), tmpQuat = new THREE.Quaternion();
 let rotateDirection = {x: 0, y: 0, z: 0};
-let rigidBodies = [];
-let fovReducers = [];
-let gravityChangers = [];
 
 let keyDownListener = null;
 let keyUpListener = null;
 let animationFrameId = null;
 let ammoTmpPos = null;
 let ammoTmpQuat = null;
-let fireworkIsOn = false;
-let lightReduced = false;
-let gravityChanged = false;
 let elapsedTime = 0;
 let unstuckCounter = 0;
-const orbits = [];
-const orbitLines = [];
 const planetObjects = [];
-const orbitColors = [0xff1100, 0x2600ff, 0x04ff00];
 
 let debugDrawer;
 
@@ -152,348 +145,41 @@ function render() {
 }
 
 function addObjects() {
-    createStars();
-    createGround();
-    createMaze();
-    createOrbits();
-
-    createFinishLine({width: 1, height: 0.6, depth: 0.5});
-    // createFovReducer({ width: 0.6, height: 0.6, depth: 0.6 });
-    // createGravityChanger({ width: 0.6, height: 0.6, depth: 0.6 });
-}
-
-function createStars() {
-    var stars = new Array(0);
-    for (var i = 0; i < 15000; i++) {
-        let x = 10 + THREE.Math.randFloatSpread(500);
-        let y = 10 + THREE.Math.randFloatSpread(500);
-        let z = 10 + THREE.Math.randFloatSpread(500);
-        stars.push(x, y, z);
-    }
-    var starsGeometry = new THREE.BufferGeometry();
-    starsGeometry.setAttribute(
-        "position", new THREE.Float32BufferAttribute(stars, 3)
-    );
-    const starsMaterial = new THREE.PointsMaterial({
-        color: 0xffffff,
-        size: 0.7,
-        sizeAttenuation: true,
-        map: new THREE.TextureLoader().load('https://threejs.org/examples/textures/sprites/circle.png'),
-        alphaTest: 0.5,
-        transparent: true
-    });
-    var starField = new THREE.Points(starsGeometry, starsMaterial);
-    scene.add(starField);
-}
-
-function createOrbits() {
-    for (let i = 4.5; i <= 6.5; i++) {
-        const radius = i * 3.5;
-        const curve = new THREE.EllipseCurve(
-            0, 0,              // Center of the ellipse
-            radius, radius,    // X and Y radii
-            0, 2 * Math.PI,    // Start and end angles
-            false              // Clockwise
-        );
-        const points = curve.getPoints(100);
-        const geometry = new THREE.BufferGeometry().setFromPoints(points);
-        const material = new THREE.LineBasicMaterial({color: orbitColors[i - 4.5]});
-        const orbitLine = new THREE.Line(geometry, material);
-
-        // Rotate orbit to horizontal plane
-        orbitLine.rotation.x = Math.PI / 2;
-        scene.add(orbitLine);
-
-        orbits.push(curve);
-        orbitLines.push(orbitLine);
-
-
-        const planet = generateRandomPlanet()
-
-        planet.userData.curve = curve; // Assign curve to planet
-        planet.userData.offset = Math.random(); // Start at a random position on the orbit
-        scene.add(planet);
-        planetObjects.push(planet);
-    }
-}
-
-function generateRandomPlanet() {
-    // Randomize planet radius
-    const radius = Math.random() * 1.4 + 0.4; // Random radius between 1 and 3
-    const shaderScale = Math.random() * 1 + 0.1; // Random noise scale (1 to 4)
-    // const shaderScale = 4.01 // Random noise scale (1 to 4)
-    const baseColor = new THREE.Color(Math.random(), Math.random(), Math.random()); // Random base color
-
-    const material = new THREE.ShaderMaterial({
-        vertexShader: `
-            varying vec3 vPos;
-            
-            void main() {
-                vPos = position;
-                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-            }
-        `,
-        fragmentShader: `
-            varying vec3 vPos;
-            ${noise} // Simplex noise function
-
-            void main() {
-                float noise = cnoise(normalize(vPos) * vec3(1, 5., 1.) * ${shaderScale}); // Apply fixed scale
-                float r = max(0.0, noise);
-                float b = max(0.0, -noise);
-
-                vec3 randomColor = vec3(${baseColor.r}, ${baseColor.g}, ${baseColor.b});
-                vec4 diffuseColor = vec4(mix(randomColor, vec3(r, 0, b), 0.5), 1.0); // Blend noise and color
-
-                gl_FragColor = diffuseColor;
-            }
-        `
-    });
-
-
-    // Create the planet mesh
-    const planet = new THREE.Mesh(
-        new THREE.IcosahedronGeometry(radius, 10), // Randomized radius
-        material // Unique material for each planet
-    );
-
-    return planet;
-}
-
-
-
-
-function createGround() {
-    loader.load('../models/ground.glb', function (glb) {
-            let pos = {x: 0, y: 0, z: 0};
-            let scale = {x: 1, y: 1, z: 1};
-            let quat = {x: 0, y: 0, z: 0, w: 1};
-            let mass = 0;
-            ground = glb.scene
-            ground.scale.set(scale.x, scale.y, scale.z)
-            ground.position.set(pos.x, pos.y, pos.z)
-            ground.rotateOnAxis(new THREE.Vector3(0, 0, 0), Math.PI)
-            ground.traverse(function(child) {
-                if (child.isMesh) {
-                    child.castShadow = true;
-                    child.receiveShadow = true;
-                }
-            })
-            scene.add(ground)
-
-            // Ammojs Section
-            let transform = new Ammo.btTransform();
-            transform.setIdentity();
-            transform.setOrigin(new Ammo.btVector3(pos.x, pos.y, pos.z));
-            transform.setRotation(new Ammo.btQuaternion(quat.x, quat.y, quat.z, quat.w));
-            let motionState = new Ammo.btDefaultMotionState(transform);
-            const shapeComponent = {
-                el: {object3D: ground},
-                data: {
-                    offset: new THREE.Vector3(0, -0.85, 0),
-                    // Collision shape type
-                    type: TYPE.HULL,
-                }
-            };
-            let colShapes = _createCollisionShape(shapeComponent)
-            let compoundShape = new Ammo.btCompoundShape();
-
-            // Combine all collision shapes
-            colShapes.forEach((shape, index) => {
-                compoundShape.addChildShape(shape.localTransform, shape);
-
-            });
-            let localInertia = new Ammo.btVector3(0, 0, 0);
-            compoundShape.calculateLocalInertia(mass, localInertia);
-
-            let rbInfo = new Ammo.btRigidBodyConstructionInfo(mass, motionState, compoundShape, localInertia);
-            let body = new Ammo.btRigidBody(rbInfo);
-
-            body.setActivationState(STATE.DISABLE_DEACTIVATION);
-            body.setCollisionFlags(FLAGS.CF_KINEMATIC_OBJECT);
-            dynamicsWorld.addRigidBody(body);
-            ground.userData.physicsBody = body;
-            rigidBodies.push(ground);
-        },
-        // function (xhr) {
-        //     console.log((xhr.loaded/xhr.total * 100) + "% loaded");
-        // },
-        function (error) {
-            console.log("An error occured" + error);
-        })
-}
-
-function createMaze() {
-    // Show loading screen
     const loadingScreen = document.getElementById('loadingScreen');
     loadingScreen.style.display = 'flex';
-
-    loader.load('../models/maze-circular.glb', function (glb) {
-            // console.log(glb)
-            let pos = {x: 0, y: 0, z: 0};
-            let scale = {x: 1, y: 1, z: 1};
-            let quat = {x: 0, y: 0, z: 0, w: 1};
-            let mass = 0;
-            maze = glb.scene
-            maze.scale.set(scale.x, scale.y, scale.z)
-            maze.position.set(pos.x, pos.y, pos.z)
-            maze.traverse(function(child) {
-                if (child.isMesh) {
-                    child.castShadow = true;
-                    child.receiveShadow = true;
-                }
-            })
-            maze.rotateOnAxis(new THREE.Vector3(0, 0, 0), Math.PI)
-            scene.add(maze)
-
-            //Ammojs Section
-            let transform = new Ammo.btTransform();
-            transform.setIdentity();
-            transform.setOrigin(new Ammo.btVector3(pos.x, pos.y, pos.z));
-            transform.setRotation(new Ammo.btQuaternion(quat.x, quat.y, quat.z, quat.w));
-            let motionState = new Ammo.btDefaultMotionState(transform);
-            const shapeComponent = {
-                el: {object3D: maze},
-                data: {
-                    offset: new THREE.Vector3(0, -0.5, 0),
-                    type: TYPE.HACD, // Collision shape type
-                }
-            };
-            let colShapes = _createCollisionShape(shapeComponent)
-            let compoundShape = new Ammo.btCompoundShape();
-
-            // Combine all collision shapes
-            colShapes.forEach((shape, index) => {
-                compoundShape.addChildShape(shape.localTransform, shape);
-
-            });
-            let localInertia = new Ammo.btVector3(0, 0, 0);
-            compoundShape.calculateLocalInertia(mass, localInertia);
-
-            let rbInfo = new Ammo.btRigidBodyConstructionInfo(mass, motionState, compoundShape, localInertia);
-            let body = new Ammo.btRigidBody(rbInfo);
-
-            body.setActivationState(STATE.DISABLE_DEACTIVATION);
-            body.setCollisionFlags(FLAGS.CF_KINEMATIC_OBJECT);
-
-            dynamicsWorld.addRigidBody(body);
-            maze.userData.physicsBody = body;
-            rigidBodies.push(maze);
-
-            loadingScreen.style.display = 'none';
-
-            // Create the Glass and Ball after the maze has loaded
-            createGlass();
-            createBall();
-            createBuffs();
-        },
-        // function (xhr) {
-        //     console.log((xhr.loaded/xhr.total * 100) + "% loaded");
-        // },
-        function (error) {
-            console.log("An error occured" + error);
+    createStars();
+    createModel( '../models/ground.glb', TYPE.HULL)
+        .then((model) => {
+            ground = model
         })
+        .catch((error) => {
+            console.error("Error loading model:", error);
+        });
+    createModel('../models/maze-circular.glb', TYPE.HACD)
+        .then((model) => {
+            maze = model
+            glass = createGlass(scene, dynamicsWorld, rigidBodies);
+            console.log(glass)
+            setTimeout(() => {
+                ball = createBall();
+            }, 800);
+            createBuffs();
+            loadingScreen.style.display = 'none';
+        })
+        .catch((error) => {
+            console.error("Error loading model:", error);
+        });
+
+    createOrbits(planetObjects);
+    createArrow().then((model) => {
+        arrow = model
+    })
+
+    createFinishLine({width: 1, height: 0.6, depth: 0.5});
+
 }
 
-function createBall() {
-    setTimeout(() => {
-        const radius = 0.2;
-        let pos = {x: 0, y: -0.5, z: 0};
-        let quat = {x: 0, y: 0, z: 0, w: 1};
-        let mass = 1;
 
-        ball = new THREE.Mesh(new THREE.SphereBufferGeometry(radius, 20, 10), new THREE.MeshPhongMaterial({color: 0x1118d6, receiveShadow: true, castShadow: true}));
-        ball.position.set(pos.x, pos.y, pos.z);
-        ball.castShadow = true;
-        ball.receiveShadow = true;
-
-        scene.add(ball);
-
-        //Ammojs Section
-        let transform = new Ammo.btTransform();
-        transform.setIdentity();
-        transform.setOrigin(new Ammo.btVector3(pos.x, pos.y, pos.z));
-        transform.setRotation(new Ammo.btQuaternion(quat.x, quat.y, quat.z, quat.w));
-        let motionState = new Ammo.btDefaultMotionState(transform);
-
-        let colShape = new Ammo.btSphereShape(radius);
-        colShape.setMargin(0.01);
-
-        let localInertia = new Ammo.btVector3(0, 0, 0);
-        colShape.calculateLocalInertia(mass, localInertia);
-
-        let rbInfo = new Ammo.btRigidBodyConstructionInfo(mass, motionState, colShape, localInertia);
-        let body = new Ammo.btRigidBody(rbInfo);
-        body.setDamping(0.5, 0.5);
-
-        dynamicsWorld.addRigidBody(body);
-
-        ball.userData.physicsBody = body;
-        rigidBodies.push(ball);
-    }, 800);
-}
-
-function createGlass() {
-    // Create the cylinder geometry
-    const radiusTop = 10.3;
-    const radiusBottom = 10.3;
-    const height = 0.1;
-    const radialSegments = 100;
-    const cylinderGeometry = new THREE.CylinderGeometry(radiusTop, radiusBottom, height, radialSegments);
-
-    // Create a material
-    const glassMaterial = new THREE.MeshPhysicalMaterial({
-        metalness: .9,
-        roughness: .05,
-        envMapIntensity: 0.9,
-        clearcoat: 1,
-        transparent: true,
-        opacity: .5,
-        reflectivity: 0.2,
-        refractionRatio: 0.985,
-        ior: 0.9,
-        side: THREE.DoubleSide,
-
-    });
-    // Create the cylinder mesh
-    glass = new THREE.Mesh(cylinderGeometry, glassMaterial);
-
-    // Position the cylinder
-    glass.position.set(0, -0.13, 0);
-    scene.add(glass);
-
-    // Ammo.js Section
-    const pos = {x: 0, y: -0.13, z: 0};
-    const quat = {x: 0, y: 0, z: 0, w: 1};
-    const mass = 0;
-
-    let transform = new Ammo.btTransform();
-    transform.setIdentity();
-    transform.setOrigin(new Ammo.btVector3(pos.x, pos.y, pos.z));
-    transform.setRotation(new Ammo.btQuaternion(quat.x, quat.y, quat.z, quat.w));
-    let motionState = new Ammo.btDefaultMotionState(transform);
-
-    // Create a cylinder collision shape
-    const colShape = new Ammo.btCylinderShape(new Ammo.btVector3(radiusTop, height / 2, radiusBottom));
-    colShape.setLocalScaling(new Ammo.btVector3(1, 1, 1));
-
-    let localInertia = new Ammo.btVector3(0, 0, 0);
-    colShape.calculateLocalInertia(mass, localInertia);
-
-    let rbInfo = new Ammo.btRigidBodyConstructionInfo(mass, motionState, colShape, localInertia);
-    let body = new Ammo.btRigidBody(rbInfo);
-
-    // Ensure the body stays active
-    body.setActivationState(STATE.DISABLE_DEACTIVATION);
-    body.setCollisionFlags(FLAGS.CF_KINEMATIC_OBJECT);
-
-    // Add the body to the physics world
-    dynamicsWorld.addRigidBody(body);
-
-    // Link the physics body to the Three.js object
-    glass.userData.physicsBody = body;
-    rigidBodies.push(glass);
-}
 
 function animatePlanets() {
     const time = Date.now() * 0.001;
@@ -509,190 +195,7 @@ function animatePlanets() {
 
 }
 
-function createFinishLine(size) {
-    // Default parameters for size and position
-    const defaultPosition = {x: 0, y: 0.1, z: 10};
-    const defaultSize = {width: 2, height: 0.2, depth: 0.1};
 
-    // Use provided position and size, or defaults
-    size = size || defaultSize;
-
-    // Create geometry and material for the finish line
-    const geometry = new THREE.BoxGeometry(size.width, size.height, size.depth);
-    const material = new THREE.MeshStandardMaterial({
-        color: 0x00ff00, // Green finish line
-        emissive: 0x004400,
-        metalness: 0.5,
-        roughness: 0.3,
-        side: THREE.DoubleSide,
-    });
-
-    // Create the mesh
-    finishLine = new THREE.Mesh(geometry, material);
-
-    // Position the finish line
-    finishLine.position.set(defaultPosition.x, defaultPosition.y, defaultPosition.z);
-    scene.add(finishLine);
-
-    // Ammo.js collision shape
-    const mass = 0;
-    let transform = new Ammo.btTransform();
-    transform.setIdentity();
-    transform.setOrigin(new Ammo.btVector3(defaultPosition.x, defaultPosition.y, defaultPosition.z));
-    transform.setRotation(new Ammo.btQuaternion(0, 0, 0, 1));
-
-    let motionState = new Ammo.btDefaultMotionState(transform);
-
-    // Create the collision shape for the finish line
-    const colShape = new Ammo.btBoxShape(
-        new Ammo.btVector3(size.width / 2, size.height / 2, size.depth / 2)
-    );
-    colShape.setMargin(0.01);
-
-    let localInertia = new Ammo.btVector3(0, 0, 0);
-    colShape.calculateLocalInertia(mass, localInertia);
-
-    let rbInfo = new Ammo.btRigidBodyConstructionInfo(mass, motionState, colShape, localInertia);
-    let body = new Ammo.btRigidBody(rbInfo);
-
-    // Ensure the body stays active
-    body.setActivationState(STATE.DISABLE_DEACTIVATION);
-    body.setCollisionFlags(FLAGS.CF_KINEMATIC_OBJECT);
-    dynamicsWorld.addRigidBody(body);
-
-    finishLine.userData.physicsBody = body;
-    rigidBodies.push(finishLine);
-
-    return finishLine;
-}
-
-// Function to create multiple indices
-function createBuffs() {
-    const size = {width: 0.6, height: 0.6, depth: 0.6};
-
-    // Create FOV Reducers
-    const fovPositions = [
-        {x: -2, y: -0.55, z: 3},
-        {x: 3, y: -0.55, z: 2},
-        {x: -1, y: -0.55, z: -4}
-    ];
-
-    fovPositions.forEach(position => {
-        const reducer = createFovReducer(size, position);
-        fovReducers.push(reducer);
-    });
-
-    // Create Gravity Changers
-    const gravityPositions = [
-        {x: 0, y: -0.55, z: 1},
-        {x: 2, y: -0.55, z: -3},
-        {x: -3, y: -0.55, z: -2}
-    ];
-
-    gravityPositions.forEach(position => {
-        const changer = createGravityChanger(size, position);
-        gravityChangers.push(changer);
-    });
-}
-
-function createFovReducer(size, position) {
-    const geometry = new THREE.BoxGeometry(size.width, size.height, size.depth);
-    const texture = new THREE.ImageUtils.loadTexture('../texture/fovReducerBox.jpg');
-    const material = new THREE.MeshStandardMaterial({
-        map: texture,
-        metalness: 0.3,
-        roughness: 0.5,
-        side: THREE.DoubleSide,
-    });
-
-    const fovReducer = new THREE.Mesh(geometry, material);
-    fovReducer.receiveShadow = true
-    fovReducer.castShadow = true
-    fovReducer.position.set(position.x, position.y, position.z);
-    scene.add(fovReducer);
-
-    // Set original offset relative to the maze
-    fovReducer.userData.originalOffset = new THREE.Vector3().copy(fovReducer.position).sub(maze.position);
-
-    // Ammo.js collision shape setup
-    const mass = 0;
-    let transform = new Ammo.btTransform();
-    transform.setIdentity();
-    transform.setOrigin(new Ammo.btVector3(position.x, position.y, position.z));
-    transform.setRotation(new Ammo.btQuaternion(0, 0, 0, 1));
-
-    let motionState = new Ammo.btDefaultMotionState(transform);
-    const colShape = new Ammo.btBoxShape(
-        new Ammo.btVector3(size.width / 2, size.height / 2, size.depth / 2)
-    );
-    colShape.setMargin(0.01);
-
-    let localInertia = new Ammo.btVector3(0, 0, 0);
-    colShape.calculateLocalInertia(mass, localInertia);
-
-    let rbInfo = new Ammo.btRigidBodyConstructionInfo(mass, motionState, colShape, localInertia);
-    let body = new Ammo.btRigidBody(rbInfo);
-
-    body.setActivationState(STATE.DISABLE_DEACTIVATION);
-    body.setCollisionFlags(FLAGS.CF_KINEMATIC_OBJECT | FLAGS.CF_NO_CONTACT_RESPONSE);
-    dynamicsWorld.addRigidBody(body);
-
-    fovReducer.userData.physicsBody = body;
-    fovReducer.userData.active = true; // Add active state
-    rigidBodies.push(fovReducer);
-
-    return fovReducer;
-}
-
-// Similar modification for createGravityChanger
-function createGravityChanger(size, position) {
-    const geometry = new THREE.BoxGeometry(size.width, size.height, size.depth);
-    const texture = new THREE.ImageUtils.loadTexture('../texture/gravityChangerBox.jpg');
-    const material = new THREE.MeshStandardMaterial({
-        map: texture,
-        metalness: 0.3,
-        roughness: 0.5,
-        side: THREE.DoubleSide,
-    });
-
-    const gravityChanger = new THREE.Mesh(geometry, material);
-    gravityChanger.position.set(position.x, position.y, position.z);
-    gravityChanger.receiveShadow = true
-    gravityChanger.castShadow = true
-    scene.add(gravityChanger);
-
-    // Set original offset relative to the maze
-    gravityChanger.userData.originalOffset = new THREE.Vector3().copy(gravityChanger.position).sub(maze.position);
-
-    // Ammo.js collision shape setup
-    const mass = 0;
-    let transform = new Ammo.btTransform();
-    transform.setIdentity();
-    transform.setOrigin(new Ammo.btVector3(position.x, position.y, position.z));
-    transform.setRotation(new Ammo.btQuaternion(0, 0, 0, 1));
-
-    let motionState = new Ammo.btDefaultMotionState(transform);
-    const colShape = new Ammo.btBoxShape(
-        new Ammo.btVector3(size.width / 2, size.height / 2, size.depth / 2)
-    );
-    colShape.setMargin(0.01);
-
-    let localInertia = new Ammo.btVector3(0, 0, 0);
-    colShape.calculateLocalInertia(mass, localInertia);
-
-    let rbInfo = new Ammo.btRigidBodyConstructionInfo(mass, motionState, colShape, localInertia);
-    let body = new Ammo.btRigidBody(rbInfo);
-
-    body.setActivationState(STATE.DISABLE_DEACTIVATION);
-    body.setCollisionFlags(FLAGS.CF_KINEMATIC_OBJECT | FLAGS.CF_NO_CONTACT_RESPONSE);
-    dynamicsWorld.addRigidBody(body);
-
-    gravityChanger.userData.physicsBody = body;
-    gravityChanger.userData.active = true; // Add active state
-    rigidBodies.push(gravityChanger);
-
-    return gravityChanger;
-}
 
 function createFirework() {
     const particleCount = 50;
@@ -765,22 +268,6 @@ function createFirework() {
     animateFirework();
 }
 
-function _createCollisionShape(shapeComponent) {
-    const data = shapeComponent.data;
-    const vertices = [];
-    const matrices = [];
-    const indexes = [];
-    const root = shapeComponent.el.object3D;
-    const matrixWorld = root.matrixWorld;
-
-    threeToAmmo.iterateGeometries(root, data, (vertexArray, matrixArray, indexArray) => {
-        vertices.push(vertexArray);
-        matrices.push(matrixArray);
-        indexes.push(indexArray);
-    });
-    // console.log("data: ", data);
-    return threeToAmmo.createCollisionShapes(vertices, matrices, indexes, matrixWorld.elements, data);
-}
 
 function handleKeyDown(event) {
     let keyCode = event.keyCode;
@@ -874,42 +361,23 @@ function rotateKinematic() {
             return
         }
     }
-    // console.log(`rotation: ${combinedRotation.x}, ${combinedRotation.y}, ${combinedRotation.z}`)
 
+    const objectsToSync = [ground, glass, finishLine, arrow];
     maze.quaternion.multiply(combinedRotation);
-    ground.quaternion.copy(maze.quaternion);
-    glass.quaternion.copy(maze.quaternion);
-    finishLine.quaternion.copy(maze.quaternion);
+    objectsToSync.forEach(obj => obj.quaternion.copy(maze.quaternion));
     // fovReducer.quaternion.copy(maze.quaternion);
 
     glass.position.y = -0.13;
 
     // Sync finish line rotation but preserve its position relative to the maze
-    let finishLineOffset = new THREE.Vector3(0, -0.55, 5); // TEST FINISH
-    // let finishLineOffset = new THREE.Vector3(0.7, -0.55, -10.5); // REAL FINISH
+    // let finishLineOffset = new THREE.Vector3(0, -0.55, 5); // TEST FINISH
+    let finishLineOffset = new THREE.Vector3(0.7, -0.55, -10.5); // REAL FINISH
     finishLineOffset.applyQuaternion(maze.quaternion); // Rotate the offset
     finishLine.position.copy(maze.position).add(finishLineOffset);
     finishLine.quaternion.copy(maze.quaternion);
 
-    // Rotate and position all FOV reducers
-    fovReducers.forEach((fovReducer) => {
-        if (fovReducer.userData.active) {
-            const originalOffset = fovReducer.userData.originalOffset.clone();
-            const rotatedOffset = originalOffset.clone().applyQuaternion(maze.quaternion);
-            fovReducer.position.copy(maze.position).add(rotatedOffset);
-            fovReducer.quaternion.copy(maze.quaternion);
-        }
-    });
-
-    // Rotate and position all gravity changers
-    gravityChangers.forEach((gravityChanger) => {
-        if (gravityChanger.userData.active) {
-            const originalOffset = gravityChanger.userData.originalOffset.clone();
-            const rotatedOffset = originalOffset.clone().applyQuaternion(maze.quaternion);
-            gravityChanger.position.copy(maze.position).add(rotatedOffset);
-            gravityChanger.quaternion.copy(maze.quaternion);
-        }
-    });
+    updateBuffsRotation(fovReducers, maze);
+    updateBuffsRotation(gravityChangers, maze);
 
     // Sync with Ammo.js
     maze.getWorldPosition(tmpPos);
@@ -922,13 +390,20 @@ function rotateKinematic() {
     // let physicsFovReducer = fovReducer.userData.physicsBody;
     // let physicsGravityChanger = gravityChanger.userData.physicsBody;
 
-    let msGr = physicsBodyGr.getMotionState();
-    let msM = physicsBodyM.getMotionState();
+
+    const motionStates = [
+        physicsBodyGr.getMotionState(),
+        physicsBodyM.getMotionState(),
+        physicsBodyGlass.getMotionState(),
+        physicsFinishLine.getMotionState(),
+    ];
+
+
     let msGlass = physicsBodyGlass.getMotionState();
     let msFinishLine = physicsFinishLine.getMotionState();
     // let msFovReducer = physicsFovReducer.getMotionState();
     // let msGravityChanger = physicsGravityChanger.getMotionState();
-    if (msM && msGr && msGlass && msFinishLine) {
+    if (motionStates.every((ms) => ms)) {
         ammoTmpPos.setValue(tmpPos.x, tmpPos.y, tmpPos.z);
         ammoTmpQuat.setValue(tmpQuat.x, tmpQuat.y, tmpQuat.z, tmpQuat.w);
 
@@ -936,10 +411,7 @@ function rotateKinematic() {
         tmpTrans.setOrigin(ammoTmpPos);
         tmpTrans.setRotation(ammoTmpQuat);
 
-        msM.setWorldTransform(tmpTrans);
-        msGr.setWorldTransform(tmpTrans);
-        msGlass.setWorldTransform(tmpTrans);
-        msFinishLine.setWorldTransform(tmpTrans);
+        motionStates.forEach((ms) => ms.setWorldTransform(tmpTrans));
         // msFovReducer.setWorldTransform(tmpTrans);
         // msGravityChanger.setWorldTransform(tmpTrans);
 
@@ -965,28 +437,38 @@ function rotateKinematic() {
         ));
         msFinishLine.setWorldTransform(finishLineTransform);
 
-        fovReducers.forEach((fovReducer) => {
-            const body = fovReducer.userData.physicsBody;
-            if (body) {
-                let transform = new Ammo.btTransform();
-                transform.setIdentity();
-                transform.setOrigin(new Ammo.btVector3(fovReducer.position.x, fovReducer.position.y, fovReducer.position.z));
-                transform.setRotation(new Ammo.btQuaternion(tmpQuat.x, tmpQuat.y, tmpQuat.z, tmpQuat.w));
-                body.getMotionState().setWorldTransform(transform);
-            }
-        });
 
-        gravityChangers.forEach((gravityChanger) => {
-            const body = gravityChanger.userData.physicsBody;
-            if (body) {
-                let transform = new Ammo.btTransform();
-                transform.setIdentity();
-                transform.setOrigin(new Ammo.btVector3(gravityChanger.position.x, gravityChanger.position.y, gravityChanger.position.z));
-                transform.setRotation(new Ammo.btQuaternion(tmpQuat.x, tmpQuat.y, tmpQuat.z, tmpQuat.w));
-                body.getMotionState().setWorldTransform(transform);
-            }
-        });
+        updateBuffsPhysics(fovReducers)
+        updateBuffsPhysics(gravityChangers)
+
     }
+}
+
+
+function updateBuffsPhysics(objects) {
+    objects.forEach((buff) => {
+        const body = buff.userData.physicsBody;
+        if (body) {
+            let transform = new Ammo.btTransform();
+            transform.setIdentity();
+            transform.setOrigin(new Ammo.btVector3(buff.position.x, buff.position.y, buff.position.z));
+            transform.setRotation(new Ammo.btQuaternion(tmpQuat.x, tmpQuat.y, tmpQuat.z, tmpQuat.w));
+            body.getMotionState().setWorldTransform(transform);
+        }
+    });
+
+}
+
+
+function updateBuffsRotation(objects, maze) {
+    objects.forEach((obj) => {
+        if (obj.userData.active) {
+            const originalOffset = obj.userData.originalOffset.clone();
+            const rotatedOffset = originalOffset.applyQuaternion(maze.quaternion);
+            obj.position.copy(maze.position).add(rotatedOffset);
+            obj.quaternion.copy(maze.quaternion);
+        }
+    });
 }
 
 function updatePhysics(deltaTime) {
@@ -1034,100 +516,10 @@ function updatePhysics(deltaTime) {
             }
 
             // Check if one of the bodies is the ball and the other the FOV Reducer
-            for (let fovReducer of fovReducers) {
-                if (fovReducer.userData.active &&
-                    ((body0 === fovReducer.userData.physicsBody && body1 === ball.userData.physicsBody) ||
-                        (body1 === fovReducer.userData.physicsBody && body0 === ball.userData.physicsBody))) {
-
-                    let numContacts = manifold.getNumContacts();
-                    for (let j = 0; j < numContacts; j++) {
-                        let pt = manifold.getContactPoint(j);
-                        if (pt.getDistance() <= 0.1) {
-                            handleFovReducerCollision(fovReducer);
-                            break;
-                        }
-                    }
-                }
-            }
-
-            for (let gravityChanger of gravityChangers) {
-                if (gravityChanger.userData.active &&
-                    ((body0 === gravityChanger.userData.physicsBody && body1 === ball.userData.physicsBody) ||
-                        (body1 === gravityChanger.userData.physicsBody && body0 === ball.userData.physicsBody))) {
-
-                    let numContacts = manifold.getNumContacts();
-                    for (let j = 0; j < numContacts; j++) {
-                        let pt = manifold.getContactPoint(j);
-                        if (pt.getDistance() <= 0.1) {
-                            handleGravityChangerCollision(gravityChanger);
-                            break;
-                        }
-                    }
-                }
-            }
+            handleBuffCollision(fovReducers, handleFovReducerCollision, body0, body1, manifold);
+            handleBuffCollision(gravityChangers, handleGravityChangerCollision, body0, body1, manifold);
         }
     }
-}
-
-// Helper functions to handle collisions
-function handleFovReducerCollision(fovReducer) {
-    if (!fovReducer.userData.active) return;
-    const audio = new Audio("../assets/fovReducer.mp3");
-    audio.play();
-
-    fovReducer.userData.active = false;
-    scene.remove(fovReducer);
-    dynamicsWorld.removeRigidBody(fovReducer.userData.physicsBody);
-
-    // Apply FOV reduction effect
-    const originalLight1Angle = light1.angle;
-    const originalLight1Penumbra = light1.penumbra;
-    const originalLight1Intensity = light1.intensity;
-    const originalLight1Target = light1.target;
-
-    lightReduced = true;
-    light1.angle = Math.PI / 12;
-    light1.target = ball;
-    light1.penumbra = 0.8;
-    light1.intensity = 0.9;
-
-    setTimeout(() => {
-        if (lightReduced && !fireworkIsOn) {
-            audio.play();
-            if (lightReduced) {
-                light1.angle = originalLight1Angle;
-                light1.penumbra = originalLight1Penumbra;
-                light1.intensity = originalLight1Intensity;
-                light1.target = originalLight1Target;
-            }
-            lightReduced = false;
-        }
-    }, 8000);
-}
-
-function handleGravityChangerCollision(gravityChanger) {
-    if (!gravityChanger.userData.active) return;
-    const audio = new Audio("../assets/gravityChanger.mp3");
-    audio.play();
-
-    gravityChanger.userData.active = false;
-    scene.remove(gravityChanger);
-    dynamicsWorld.removeRigidBody(gravityChanger.userData.physicsBody);
-
-    // Apply gravity change effect
-    const originalGravity = dynamicsWorld.getGravity();
-    gravityChanged = true;
-    dynamicsWorld.setGravity(new Ammo.btVector3(0, 10, 0));
-
-    setTimeout(() => {
-        if (gravityChanged && !fireworkIsOn) {
-            audio.play();
-            if (gravityChanged) {
-                dynamicsWorld.setGravity(originalGravity);
-            }
-            gravityChanged = false;
-        }
-    }, 8000);
 }
 
 function update() {
@@ -1138,6 +530,9 @@ function update() {
     // Update physics world
     updatePhysics(delta);
     animatePlanets();
+    if (arrow && arrow.userData.mixer) {
+        arrow.userData.mixer.update(delta);
+    }
 
 
     // fovReducer.rotation.y += 0.02
@@ -1146,34 +541,7 @@ function update() {
     controls.update()
 }
 
-function clearScene() {
-    if (scene) {
-        // Traverse and dispose of all objects in the scene
-        scene.traverse((object) => {
-            if (object.isMesh) {
-                // Dispose of geometry
-                if (object.geometry) {
-                    object.geometry.dispose();
-                }
-                // Dispose of material
-                if (object.material) {
-                    if (Array.isArray(object.material)) {
-                        object.material.forEach((mat) => {
-                            mat.dispose();
-                        });
-                    } else {
-                        object.material.dispose();
-                    }
-                }
-            }
-        });
 
-        // Remove all children from the scene
-        while (scene.children.length > 0) {
-            scene.remove(scene.children[0]);
-        }
-    }
-}
 
 function resetVariables() {
     if (animationFrameId) {
@@ -1364,59 +732,4 @@ function setupEventHandlers() {
     window.addEventListener('keyup', keyUpListener, false);
 }
 
-document.getElementById('startButton').addEventListener('click', function () {
-    startNewGame();
-});
-
-// Event listener for the end screen "Start a New Game" button
-document.getElementById('endStartButton').addEventListener('click', function () {
-    const endScreen = document.getElementById('endScreen');
-    const endText = document.getElementById('endText');
-    endScreen.style.display = 'none';
-    endText.style.display = 'none';
-
-    startNewGame();
-});
-
-document.getElementById('continueButton').addEventListener('click', function () {
-    document.getElementById('menu').style.display = 'none';
-    document.getElementById('menuButton').style.display = 'block';
-    const timerDiv = document.getElementById('timer');
-    if (timerDiv) {
-        timerDiv.style.display = 'flex';
-        timerDiv.style.backgroundColor = '#ffffff';
-        timerDiv.style.color = '#000000';
-    }
-});
-
-// Event listener to show controls
-document.getElementById('controlsButton').addEventListener('click', function () {
-    const controlsDiv = document.getElementById('controls');
-    if (controlsDiv) {
-        controlsDiv.style.display = 'flex';
-    }
-});
-
-// Back button to return to the menu from controls
-document.getElementById('backToMenuButton')?.addEventListener('click', function () {
-    const controlsDiv = document.getElementById('controls');
-    if (controlsDiv) {
-        controlsDiv.style.display = 'none';
-    }
-});
-
-document.getElementById('menuButton').addEventListener('click', function () {
-    document.getElementById('continueButton').style.display = 'block';
-    const menu = document.getElementById('menu');
-    const menuButton = document.getElementById('menuButton');
-    const timerDiv = document.getElementById('timer');
-    if (timerDiv) {
-        timerDiv.style.backgroundColor = '#000000';
-        timerDiv.style.color = '#ffffff';
-    }
-
-    if (menu.style.display === 'none' || menu.style.display === '') {
-        menu.style.display = 'flex';
-        menuButton.style.display = 'none';
-    }
-});
+setupEventListeners(startNewGame);

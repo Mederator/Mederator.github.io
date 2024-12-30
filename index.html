@@ -22,6 +22,18 @@
     }
   </script>
   <script>
+    const FLAGS = {CF_KINEMATIC_OBJECT: 2}
+    const STATE = {DISABLE_DEACTIVATION: 4}
+    let sizes, canvas, camera, scene, light1, renderer, controls, loader,
+            maze, ground, glass, ball, finishLine, fovReducer, gravityChanger, fireworkScene, tmpTrans, arrow,
+            dynamicsWorld, timerInterval;
+    let rigidBodies = [];
+    let fovReducers = [];
+    let gravityChangers = [];
+    let lightReduced = false;
+    let fireworkIsOn = false;
+    let gravityChanged = false;
+
     let noise = `//	Classic Perlin 3D Noise
 //	by Stefan Gustavson
 //
