@@ -1,3 +1,11 @@
+/*
+  TiltQuest
+  Authors: Gabriel Meder and Kristián Zsigó
+  Date: 2024-2025
+  Version: 1.1
+  Description: TiltQuest game, where the player navigates a ball through a maze by tilting it.
+*/
+
 const FLAGS = {CF_KINEMATIC_OBJECT: 2}
 const STATE = {DISABLE_DEACTIVATION: 4}
 

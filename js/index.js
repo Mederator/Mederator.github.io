@@ -1,6 +1,13 @@
+/*
+  TiltQuest
+  Authors: Gabriel Meder and Kristián Zsigó
+  Date: 2024-2025
+  Version: 1.1
+  Description: TiltQuest game, where the player navigates a ball through a maze by tilting it.
+*/
+
 import {OrbitControls} from 'three/examples/jsm/controls/OrbitControls';
 import {GLTFLoader} from 'three/examples/jsm/loaders/GLTFLoader';
-import * as threeToAmmo from "three-to-ammo"
 import {TYPE} from "three-to-ammo"
 import {setupEventListeners} from "./setupUi.js";
 import {
@@ -164,19 +171,16 @@ function addObjects() {
                 ball = createBall();
             }, 800);
             createBuffs();
+            createOrbits(planetObjects);
+            createArrow().then((model) => {
+                arrow = model
+            })
             loadingScreen.style.display = 'none';
         })
         .catch((error) => {
             console.error("Error loading model:", error);
         });
-
-    createOrbits(planetObjects);
-    createArrow().then((model) => {
-        arrow = model
-    })
-
     createFinishLine({width: 1, height: 0.6, depth: 0.5});
-
 }
 
 

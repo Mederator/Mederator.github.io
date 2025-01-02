@@ -32,10 +32,10 @@ body {
 #menu img {
     max-width: 400px;
     margin-bottom: 0px;
-    margin-top: -200px;
+    margin-top: -150px;
 }
 
-#menu button, #controls button {
+#menu button, .info button {
     width: 250px;
     height: 50px;
     background: #000000;
@@ -49,15 +49,15 @@ body {
     margin: 5px;
 }
 
-#menu button:hover, #controls button:hover {
+#menu button:hover, .info button:hover {
     transform: scale(1.025);
 }
 
-#menu button:active, #controls button:active {
+#menu button:active, .info button:active {
     transform: scale(0.975);
 }
 
-#controls {
+.info {
     display: none;
     position: absolute;
     top: 0;
@@ -76,7 +76,7 @@ body {
     background-repeat: no-repeat
 }
 
-#controls ul {
+.info ul {
     list-style-type: none;
     text-align: center;
     margin: 0;
@@ -84,7 +84,7 @@ body {
 
     height: 350px;
     width: 350px;
-    background-image: url('../assets/BlueBall.png');
+    background-image: url('../assets/blueBall.png');
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
@@ -94,13 +94,13 @@ body {
     align-items: center;
 }
 
-#controls ul li {
+.info ul li {
     font-family: Arial, sans-serif;
-    font-size: 1.2em;
+    font-size: 1.1em;
     font-weight: bold;
     margin: 3px 0;
 }
 
-#controls button {
+.info button {
     margin-top: 20px;
 }

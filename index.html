@@ -1,3 +1,10 @@
+<!--
+  TiltQuest
+  Authors: Gabriel Meder and Kristián Zsigó
+  Date: 2024-2025
+  Version: 1.1
+  Description: TiltQuest game, where the player navigates a ball through a maze by tilting it.
+-->
 <!DOCTYPE html>
 <html lang="en">
 
@@ -125,9 +132,10 @@ float cnoise(vec3 P){
     <button id="continueButton" style="display: none;">Continue the Game</button>
     <button id="startButton">Start a New Game</button>
     <button id="controlsButton">Controls</button>
+    <button id="aboutButton">About</button>
   </div>
 
-  <div id="controls" class="menu" style="display: none;">
+  <div id="controls" class="info" style="display: none;">
     <h1>Controls</h1>
     <ul>
       <li>W: Tilt Top</li>
@@ -135,7 +143,20 @@ float cnoise(vec3 P){
       <li>A: Tilt Left Side</li>
       <li>D: Tilt Right Side</li>
     </ul>
-    <button id="backToMenuButton">Back</button>
+    <button id="backToMenuButton1">Back</button>
+  </div>
+
+  <div id="about" class="info" style="display: none;">
+    <h1>About</h1>
+    <ul>
+      <li>TUKE</li>
+      <li>FEI</li>
+      <li>KPI</li>
+      <li>Gabriel Meder, Kristián Zsigó</li>
+      <li>Počítačová grafika</li>
+      <li>2024/2025</li>
+    </ul>
+    <button id="backToMenuButton2">Back</button>
   </div>
 
   <div id="loadingScreen">
