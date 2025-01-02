@@ -7,4 +7,3 @@ The journey through the maze is made more challenging by effects triggered upon 
 - Change the direction of gravity, complicating movement.
 
 The player's performance is measured with a timer, allowing comparison of progress and improvement over time or against other players.
-
